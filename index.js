@@ -36,13 +36,43 @@ let coinMsg;
 const grabMsgArray = [];
 let birthdays = {};
 let willAuto = false;
+const FETCH_LIMIT = 100;
 
-let db = new sqlite3.Database('./db/alose.db', (error) => {
-    if (error) {
-        console.error(error.message);
-    }
-    console.log('Connected to the database.')
-});
+const db = new sqlite3.Database('./AloseDB.db');
+
+db.run(`
+CREATE TABLE IF NOT EXISTS messages (
+  channel_id INTEGER NOT NULL,
+  message_id INTEGER NOT NULL,
+  author_id INTEGER,
+  message_text TEXT,
+  PRIMARY KEY (channel_id, message_id)
+)
+`);
+
+db.run(`
+CREATE TABLE IF NOT EXISTS keywords (
+  keyword_text TEXT,
+  response_text TEXT,
+  PRIMARY KEY (keyword_text, response_text)
+)
+`);
+
+db.run(`
+CREATE TABLE IF NOT EXISTS birthdays (
+  user_id INTEGER,
+  date_text TEXT,
+  PRIMARY KEY (user_id)
+)
+`);
+
+db.run(`
+CREATE TABLE IF NOT EXISTS bannedwords (
+  word_text TEXT,
+  PRIMARY KEY (word_text)
+)
+`);
+
 const grabCodes = [
     'test1',
     'test2',
@@ -199,43 +229,45 @@ function cleanMessage(message) {
       );
 }
 
-function pullMessages(channel, begin) {
-    return channel.fetchMessages({limit: 100, after: begin})
-        .then(messages => {
-            const messagesArray = messages.array();
-            let nextBegin;
-            if (messagesArray.length > 0) {
-                nextBegin = messagesArray[0].id;
-                for (const message of messagesArray) {
-                    const mentions = message.mentions.users.array();
-                    let wasMentioned = false;
-                    for (const mention of mentions) {
-                        if (mention.id === botId) {
-                            wasMentioned = true;
-                        }
-                    }
-                    const cleanedMessage = cleanMessage(message.content).trim();
-                    if (cleanedMessage != '' && 
-                        !message.author.bot &&
-                        !(message.embeds.length > 0) &&
-                        !message.content.includes('http') &&
-                        !wasMentioned) {
-                        fs.appendFileSync('messages.txt', cleanedMessage + '\n');
-                    }
-                }
-            }
-            if (nextBegin) {
-                channels[channel.id] = nextBegin;
-                fs.writeFileSync('channelsAndMessages.txt', JSON.stringify(channels));
-            }
-            if (messagesArray.length === 100) {
-                return pullMessages(channel, nextBegin);
-            }
-        }) 
-        .catch(error => {
-            console.error();
+function pullMessages(channelID, begin) {
+    const channel = client.channels.get(channelID);
+    if (channel == null) {
+      throw new Error(`bad channel ID: ${channelID}`);
+    }
+  
+    const debugName = `#${channel.name} (${channel.id})`;
+    console.log(`* pullMessages(): ${debugName}, starting ${begin}`)
+  
+    return channel.fetchMessages({ limit: FETCH_LIMIT, after: begin })
+      .then(messages => {
+        if (messages.size === 0) {
+          console.log(`done for ${debugName}`);
+          return;
+        }
+  
+        const filteredMessages = messages.filter(
+          message =>
+            !message.author.bot &&
+            message.embeds.length === 0 &&
+            !message.content.includes('http') &&
+            !message.isMentioned(client.user)
+        );
+  
+        filteredMessages.forEach(message => {
+          // console.log(`--- writing ${channel.id}, ${message.id}`);
+          saveMessage(message);
         });
-}
+        console.log(`[${debugName}] saved ${filteredMessages.size} of ${messages.size} messages`);
+  
+        if (messages.size === FETCH_LIMIT) {
+          return pullMessages(channelID, messages.first().id);
+        }
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
+
 
 function fillDictionary() {
     fs.readFile('messages.txt', 'utf8', (err, data) => {
@@ -362,15 +394,33 @@ client.on('error', (error) => {
 
 client.on('ready', async () => {
     console.log('here i go')
-    pullChannel = client.channels.get(generalChannel);
-    channels = JSON.parse(fs.readFileSync('channelsAndMessages.txt', 'utf8'));
+    channels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
 
-    const pullMessagesPromises = [];
-    for (const channel in channels) {
-        let channelHolder = client.channels.get(channel.toString());
-        pullMessagesPromises.push(pullMessages(channelHolder, channels[channel]));
-    }
-    await Promise.all(pullMessagesPromises);
+    const promises = new Map();
+    const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start));
+  
+    const sql = `
+    SELECT
+      channel_id,
+      MAX(message_id) AS last_seen_message
+    FROM messages
+    GROUP BY channel_id
+    `;
+    db.each(sql, (err, row) => {
+      const lastSeenMessageID = row['last_seen_message'];
+      if (lastSeenMessageID != null) {
+        makePullPromise(row['channel_id'], row['last_seen_message']);
+      }
+    }, async () => {
+      for (const channelID of channels) {
+        if (!promises.has(channelID)) {
+          makePullPromise(channelID);
+        }
+      }
+  
+      await Promise.all(promises.values());
+      console.log('done');
+    });
 
     console.log('filling dictionary...')
     fillDictionary();
@@ -896,14 +946,16 @@ client.on('message', (msg) => {
 
         const lines = cleanMessage(msg.content).split(/[\n]+/);
 
+        
         for (let i = 0; i < lines.length; i++) {
             if (lines[i] !== '') {
+                
                 MarkovDictionary.addLine(lines[i]);
                 fs.appendFileSync('messages.txt', lines[i] + '\n');
             }
         }
         channels[msg.channel.id] = msg.id;
-        fs.writeFileSync('channelsAndMessages.txt', JSON.stringify(channels));
+        fs.writeFileSync('channels.txt', JSON.stringify(channels));
 
     }
 
