@@ -229,6 +229,17 @@ function cleanMessage(message) {
       );
 }
 
+function saveMessage(message) {
+    db.run(`
+    INSERT INTO messages (message_id, message_text, author_id, channel_id)
+    VALUES (?, ?, ?, ?)
+    `, [message.id, message.content, message.author.id, message.channel.id], (err) => {
+      if (err) {
+        console.error(err.message);
+      }
+    });
+  }
+
 function pullMessages(channelID, begin) {
     const channel = client.channels.get(channelID);
     if (channel == null) {
@@ -270,38 +281,70 @@ function pullMessages(channelID, begin) {
 
 
 function fillDictionary() {
-    fs.readFile('messages.txt', 'utf8', (err, data) => {
-        if (err) throw err;
+    let messageSql = `SELECT message_text, message_id FROM messages ORDER BY message_id`;
+    let bannedSql = `SELECT word_text FROM bannedwords`;
+    let keywordSql = `SELECT keyword_text, response_text FROM keywords`;
+    let birthdaySql = `SELECT user_id, date_string FROM birthdays ORDER by user_id`;
 
-        const parsedData = data.split(/[\n]+/);
+    db.all(messageSql, [], (err, rows) => {
+      if (err) {
+        throw err;
+      }
+      rows.forEach((row) => {
+        MarkovDictionary.addLine(row.message_text);
+      });
+    });
 
-        for (let i = 0; i < parsedData.length - 1; i++) {
-            MarkovDictionary.addLine(parsedData[i]);
+    db.all(bannedSql, [], (err, rows) => {
+        if (err) {
+          throw err;
         }
+        rows.forEach((row) => {
+          MarkovDictionary.addBannedWord(row.word_text);
+        });
+    });
+    
+    db.all(keywordSql, [], (err, rows) => {
+        if (err) {
+            throw err;
+        }
+        rows.forEach((row) => {
+            cannedResponses[row.keyword_text] = row.response_text;
+        });
+    });
 
-        console.log('loading complete');
-        console.log('loading banned words list...');
-        loadBannedWords();
-    })
-}
+    db.all(birthdaySql, [], (err, rows) => {
+        if (err) {
+            throw err;
+        }
+        rows.forEach((row) => {
+            birthdays[row.user_id] = row.date_string;
+        });
+    });
 
-function loadBannedWords() {
-    fs.readFile('bannedWords.txt', 'utf8', (err, data) => {
-        if (err) throw err;
+    Object.keys(birthdays).forEach((id) => {
+        const date = birthdays[id];
+        const dateString = date.split('/');
+        if (dateString.length === 2) {
+            const birthDate = new Date();
+            const currentDate = new Date();
+            birthDate.setMonth(parseInt(dateString[0], 10) - 1);
+            birthDate.setDate(parseInt(dateString[1], 10));
+            birthDate.setHours(0);
+            birthDate.setMinutes(0);
+            birthDate.setSeconds(0);
+            birthDate.setMilliseconds(0);
 
-        const parsedData = data.split(/[\n]+/);
-
-        for (let i = 0; i < parsedData.length; i++) {
-            if(parsedData[i]) {
-                MarkovDictionary.addBannedWord(parsedData[i]);
+            if (birthDate.getTime() < currentDate.getTime()) {
+                birthDate.setFullYear(birthDate.getFullYear() + 1);
             }
-        }
 
-        console.log('banned words loaded!');
-        console.log('birthdays loading...');
-        loadBirthdays();     
-    })
-}
+            longTimeout(() => {
+                client.channels.get('546665650383224833').send(`It's <@${id}> 's birthday!`);
+            }, birthDate.getTime() - currentDate.getTime());
+        }
+    });
+  }
 
 /*function loadCountDowns() {
     fs.readFile('countdowns.txt', 'utf8', (err, data) => {
@@ -334,42 +377,6 @@ function loadStore() {
         loadBirthdays();
     })
 }*/
-
-function loadBirthdays() {
-    fs.readFile('birthdays.txt', 'utf8', (err, data) => {
-        if (err) throw err;
-
-        const parsedData = JSON.parse(data);
-        for (const key of Object.keys(parsedData)) {
-            birthdays[key] = parsedData[key];
-        }
-
-        Object.keys(birthdays).forEach((id) => {
-            const date = birthdays[id];
-            const dateString = date.split('/');
-            if (dateString.length === 2) {
-                const birthDate = new Date();
-                const currentDate = new Date();
-                birthDate.setMonth(parseInt(dateString[0], 10) - 1);
-                birthDate.setDate(parseInt(dateString[1], 10));
-                birthDate.setHours(0);
-                birthDate.setMinutes(0);
-                birthDate.setSeconds(0);
-                birthDate.setMilliseconds(0);
-
-                if (birthDate.getTime() < currentDate.getTime()) {
-                    birthDate.setFullYear(birthDate.getFullYear() + 1);
-                }
-
-                longTimeout(() => {
-                    client.channels.get('546665650383224833').send(`It's <@${id}> 's birthday!`);
-                }, birthDate.getTime() - currentDate.getTime());
-            }
-        });
-        console.log('birthdays loaded!')
-        hasLoaded = true;
-    });
-}
 
 function sentenceGenerator(message) {
     let sentence;
@@ -943,20 +950,15 @@ client.on('message', (msg) => {
         !msg.content.includes('http') &&
         channels[msg.channel.id] &&
         !msg.author.bot) {
-
+        
+        saveMessage(msg);
         const lines = cleanMessage(msg.content).split(/[\n]+/);
-
         
         for (let i = 0; i < lines.length; i++) {
             if (lines[i] !== '') {
-                
                 MarkovDictionary.addLine(lines[i]);
-                fs.appendFileSync('messages.txt', lines[i] + '\n');
             }
         }
-        channels[msg.channel.id] = msg.id;
-        fs.writeFileSync('channels.txt', JSON.stringify(channels));
-
     }
 
 
