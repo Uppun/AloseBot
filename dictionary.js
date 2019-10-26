@@ -29,11 +29,6 @@ class Dictionary {
 
     addBannedWord(word) {
         if (!this.bannedWords.includes(word)) {
-            if (this.bannedWords.length >= 1) {
-                fs.appendFileSync('bannedWords.txt', '\n' + word);
-            } else {
-                fs.writeFileSync('bannedWords.txt', word);
-            }
             this.bannedWords.push(word);
             return true;
         }
@@ -41,18 +36,7 @@ class Dictionary {
         const index = this.bannedWords.indexOf(word);
         if (index > -1) {
             this.bannedWords.splice(index, 1);
-            const banData = fs.readFileSync('bannedWords.txt', 'utf8');
-            let newBanData = '';
-            const parsedBanData = banData.split(`\n`);
-            for (const line of parsedBanData) {
-                if (line !== word) {
-                    newBanData += (line + '\n');
-                }
-            }
-            newBanData = newBanData.substr(0, newBanData.length - 1);
-            fs.writeFileSync('bannedWords.txt', newBanData, 'utf8');
         }
-
         return false;
     }
 

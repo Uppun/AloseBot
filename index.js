@@ -189,7 +189,14 @@ function addWord(words) {
     const splitWords = words.split('"');
     if (splitWords[1] && splitWords[3]) {
         cannedResponses[splitWords[1]] = splitWords[3];
-        fs.writeFileSync("wordData.txt", JSON.stringify(cannedResponses));
+        db.run(`
+        INSERT INTO keywords (keyword_text, response_text)
+        VALUES (?, ?)
+        `, [splitWords[1], splitWords[3]], (err) => {
+          if (err) {
+            console.error(err.message);
+          }
+        });
         return true;
     }
     return false;
@@ -199,7 +206,12 @@ function removeWord(words) {
     const splitWords = words.split('"');
     if (cannedResponses[splitWords[1]]) {
         delete cannedResponses[splitWords[1]];
-        fs.writeFileSync("wordData.txt", JSON.stringify(cannedResponses));
+        db.run(`
+        DELETE FROM keywords WHERE keyword_text=?`, splitWords[1], (err) => {
+          if (err) {
+            console.error(err.message);
+          }
+        }); 
         return true;
     }
 
@@ -526,9 +538,26 @@ client.on('message', (msg) => {
             if (msg.content.startsWith('!banword')) {
                 const split = msg.content.split(' ');
                 if (split.length >= 2) {
-                    MarkovDictionary.addBannedWord(split[1].toLowerCase()) ? 
-                        client.channels.get(msg.channel.id).send(`${split[1]} is now on my naughty list!`) :
+                    const bannedWord = split[1].toLowerCase();
+                    if (MarkovDictionary.addBannedWord(bannedWord)) {
+                        db.run(`
+                        INSERT INTO bannedwords (word_text)
+                        VALUES (?)
+                        `, [bannedWord], (err) => {
+                          if (err) {
+                            console.error(err.message);
+                          }
+                        });
+                        client.channels.get(msg.channel.id).send(`${split[1]} is now on my naughty list!`);
+                    } else {
+                        db.run(`
+                        DELETE FROM bannedwords WHERE word_text=?`, bannedWord, (err) => {
+                          if (err) {
+                            console.error(err.message);
+                          }
+                        });
                         client.channels.get(msg.channel.id).send(`Ban on ${split[1]} removed!`);
+                    }
                 }
             }
     
@@ -820,7 +849,14 @@ client.on('message', (msg) => {
             const dateString = splitMessage[1].split('/');
             if (parseInt(dateString[0], 10) < 13 && parseInt(dateString[1], 10) < 32) {
                 birthdays[msg.author.id] = splitMessage[1];
-                fs.writeFileSync('birthdays.txt', JSON.stringify(birthdays));
+                db.run(`
+                INSERT INTO birthdays (user_id, date_text)
+                VALUES (?, ?)
+                `, [msg.author.id, splitMessage[1]], (err) => {
+                  if (err) {
+                    console.error(err.message);
+                  }
+                });
                 client.channels.get(botSpeakChannel).send('> Alose will remember this date.');
                 client.channels.get('528520679369211904').send(`<@${msg.author.id}> set their birthday to ${splitMessage[1]}!`);
             }
