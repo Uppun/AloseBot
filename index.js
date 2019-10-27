@@ -26,7 +26,7 @@ let coinDropAmount = 0;
 let messageTimer = 0;
 let messageCap = 0;
 let isAwake = true;
-let channels;
+let usedChannels;
 const hugCooldowns = [];
 let shopPages = [];
 let coinCounter = -1;
@@ -38,13 +38,13 @@ let birthdays = {};
 let willAuto = false;
 const FETCH_LIMIT = 100;
 
-const db = new sqlite3.Database('./AloseDB.db');
+const db = new sqlite3.Database('./db/AloseDB.db');
 
 db.run(`
 CREATE TABLE IF NOT EXISTS messages (
-  channel_id INTEGER NOT NULL,
-  message_id INTEGER NOT NULL,
-  author_id INTEGER,
+  channel_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  author_id TEXT,
   message_text TEXT,
   PRIMARY KEY (channel_id, message_id)
 )
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS keywords (
 
 db.run(`
 CREATE TABLE IF NOT EXISTS birthdays (
-  user_id INTEGER,
+  user_id TEXT,
   date_text TEXT,
   PRIMARY KEY (user_id)
 )
@@ -296,7 +296,7 @@ function fillDictionary() {
     let messageSql = `SELECT message_text, message_id FROM messages ORDER BY message_id`;
     let bannedSql = `SELECT word_text FROM bannedwords`;
     let keywordSql = `SELECT keyword_text, response_text FROM keywords`;
-    let birthdaySql = `SELECT user_id, date_string FROM birthdays ORDER by user_id`;
+    let birthdaySql = `SELECT user_id, date_text FROM birthdays ORDER by user_id`;
 
     db.all(messageSql, [], (err, rows) => {
       if (err) {
@@ -330,7 +330,7 @@ function fillDictionary() {
             throw err;
         }
         rows.forEach((row) => {
-            birthdays[row.user_id] = row.date_string;
+            birthdays[row.user_id] = row.date_text;
         });
     });
 
@@ -356,6 +356,7 @@ function fillDictionary() {
             }, birthDate.getTime() - currentDate.getTime());
         }
     });
+    hasLoaded = true;
   }
 
 /*function loadCountDowns() {
@@ -413,8 +414,8 @@ client.on('error', (error) => {
 
 client.on('ready', async () => {
     console.log('here i go')
-    channels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
-
+    usedChannels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
+    console.log(usedChannels)
     const promises = new Map();
     const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start));
   
@@ -428,10 +429,11 @@ client.on('ready', async () => {
     db.each(sql, (err, row) => {
       const lastSeenMessageID = row['last_seen_message'];
       if (lastSeenMessageID != null) {
+          console.log(row);
         makePullPromise(row['channel_id'], row['last_seen_message']);
       }
     }, async () => {
-      for (const channelID of channels) {
+      for (const channelID of usedChannels) {
         if (!promises.has(channelID)) {
           makePullPromise(channelID);
         }
@@ -443,17 +445,6 @@ client.on('ready', async () => {
 
     console.log('filling dictionary...')
     fillDictionary();
-
-
-    fs.readFile('wordData.txt', 'utf8', (err, data) => {
-        if(err) return err;
-
-        const parsedData = JSON.parse(data);
-        for (const key of Object.keys(parsedData)) {
-            cannedResponses[key] = parsedData[key];
-        }
-        console.log('word map loaded')
-    }) 
 
     fs.readFile('currency.txt', 'utf8', (err, data) => {
         if(err) return err;
@@ -984,7 +975,7 @@ client.on('message', (msg) => {
         !hasResponded && 
         !(msg.embeds.length > 0) &&
         !msg.content.includes('http') &&
-        channels[msg.channel.id] &&
+        usedChannels[msg.channel.id] &&
         !msg.author.bot) {
         
         saveMessage(msg);
