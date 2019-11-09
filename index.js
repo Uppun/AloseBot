@@ -429,7 +429,6 @@ client.on('ready', async () => {
     db.each(sql, (err, row) => {
       const lastSeenMessageID = row['last_seen_message'];
       if (lastSeenMessageID != null) {
-          console.log(row);
         makePullPromise(row['channel_id'], row['last_seen_message']);
       }
     }, async () => {
