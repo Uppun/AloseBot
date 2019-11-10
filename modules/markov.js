@@ -5,12 +5,20 @@ class MarkovModule {
     constructor(dispatch) {
         this.dispatch = dispatch;
 
-        this.dispatch.hook(null, () => {
-            //Add a message to Markov dictionary 
+        this.dispatch.hook(null, (message, client) => {
+            //Add a message to Markov dictionary
+            db.run(`
+            INSERT INTO messages (message_id, message_text, author_id, channel_id)
+            VALUES (?, ?, ?, ?)
+            `, [message.id, message.content, message.author.id, message.channel.id], (err) => {
+              if (err) {
+                console.error(err.message);
+              }
+            });
             console.log('This is the firehose');
         });
 
-        this.dispatch.hook(null, () => {
+        this.dispatch.hook(null, (message, client) => {
             //Generates a Markov sentence
             console.log('This is the firehose');
         });
