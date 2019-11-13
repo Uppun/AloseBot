@@ -1,18 +1,14 @@
 const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('config.txt'), 'utf8');
 
 class ConfigTracker {
-    getConfig() {
-        const channels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
-        return channels;
+    get(option) {
+        return config[option];
     }
-    addConfig(channelId) {
-        const channels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
-        channels.push(channelId);
-        JSON.stringify(fs.writeFileSync('channels.txt', 'utf8'));
-    }
-    removeConfig(channelId) {
-        let channels = JSON.parse(fs.readFileSync('channels.txt', 'utf8'));
-        const index = channels.indexOf(channelId);
-
+    set(option, value) {
+      config[option] = value;
+      fs.writeFileSync('config.txt', JSON.stringify(config), 'utf8');
     }
 }
+
+module.exports = ConfigTracker;
