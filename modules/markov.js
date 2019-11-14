@@ -20,6 +20,45 @@ function cleanMessage(message) {
     );
 }
 
+function pullMessages(channelID, begin, client) {
+  const channel = client.channels.get(channelID);
+  if (channel == null) {
+    throw new Error(`bad channel ID: ${channelID}`);
+  }
+
+  const debugName = `#${channel.name} (${channel.id})`;
+  console.log(`* pullMessages(): ${debugName}, starting ${begin}`)
+
+  return channel.fetchMessages({ limit: FETCH_LIMIT, after: begin })
+    .then(messages => {
+      if (messages.size === 0) {
+        console.log(`done for ${debugName}`);
+        return;
+      }
+
+      const filteredMessages = messages.filter(
+        message =>
+          !message.author.bot &&
+          message.embeds.length === 0 &&
+          !message.content.includes('http') &&
+          !message.isMentioned(client.user)
+      );
+
+      filteredMessages.forEach(message => {
+        // console.log(`--- writing ${channel.id}, ${message.id}`);
+        saveMessage(message);
+      });
+      console.log(`[${debugName}] saved ${filteredMessages.size} of ${messages.size} messages`);
+
+      if (messages.size === FETCH_LIMIT) {
+        return pullMessages(channelID, messages.first().id);
+      }
+    })
+    .catch(error => {
+      console.error(error);
+    });
+}
+
 class MarkovModule {
     constructor(dispatch, config) {
         this.dispatch = dispatch;
@@ -43,6 +82,36 @@ class MarkovModule {
             PRIMARY KEY (word_text)
           )`
         );
+
+        const usedChannels = JSON.parse(this.config.get('listen-channels'));
+        const promises = new Map();
+        const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start, this.client));
+      
+        const sql = `
+        SELECT
+          channel_id,
+          MAX(message_id) AS last_seen_message
+        FROM messages
+        GROUP BY channel_id
+        `;
+        db.each(sql, (err, row) => {
+          const lastSeenMessageID = row['last_seen_message'];
+          if (lastSeenMessageID != null) {
+            makePullPromise(row['channel_id'], row['last_seen_message']);
+          }
+        }, async () => {
+          for (const channelID of usedChannels) {
+            if (!promises.has(channelID)) {
+              makePullPromise(channelID);
+            }
+          }
+      
+          await Promise.all(promises.values());
+          console.log('done');
+        });
+    
+        const messageSql = `SELECT message_text, message_id FROM messages ORDER BY message_id`;
+        const bannedSql = `SELECT word_text FROM bannedwords`;
 
         this.db.all(messageSql, [], (err, rows) => {
           if (err) {
