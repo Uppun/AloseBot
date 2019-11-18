@@ -289,7 +289,7 @@ function pullMessages(channelID, begin) {
       .catch(error => {
         console.error(error);
       });
-  }
+}
 
 
 function fillDictionary() {

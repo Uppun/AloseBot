@@ -5,9 +5,9 @@ function escapeRegExp(string) {
 }
 
 class KeywordModule {
-    constructor(dispatch, config) {
-        this.dispatch = dispatch;
-        this.config = config;
+    constructor(context) {
+        this.dispatch = context.dispatch;
+        this.config = context.config;
         this.db = new sqlite3.Database('../db/AloseDB.db');
         this.keyWords = {};
 
@@ -29,7 +29,7 @@ class KeywordModule {
             });
         });
 
-        this.dispatch.hook('!addword', (message, client) => {
+        this.dispatch.hook('!addword', (message) => {
             const channels = this.config.get('mod-channels');
 
             if (channels.includes(message.channel.id)) {
@@ -51,7 +51,7 @@ class KeywordModule {
             }
         });
         
-        this.dispatch.hook('!removeword', (message, client) => {
+        this.dispatch.hook('!removeword', (message) => {
             const channels = this.config.get('mod-channels');
 
             if (channels.includes(message.channel.id)) {
@@ -75,12 +75,12 @@ class KeywordModule {
             }
         });
 
-        this.dispatch.hook(null, (message, client) => {
+        this.dispatch.hook(null, (message) => {
             //Listen for keywords in messages.
 
-            const channels = this.config.get('listen-channels');
+            const channels = this.config.get('reply-channels');
 
-            if (channels.includes(message.channel.id) && !message.isMemberMentioned(client.user)) {
+            if (channels.includes(message.channel.id) && !message.isMemberMentioned(message.client.user)) {
                 for (const key of Object.keys(cannedResponses)) {
                     const wordChecker = new RegExp("(?<=\\s|^)" + escapeRegExp(key) + "(?=\\s|$|[?!.,])");
                     if (wordChecker.test(msg.content)) {
@@ -92,3 +92,5 @@ class KeywordModule {
 
     }
 }
+
+module.exports = KeywordModule;
