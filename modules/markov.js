@@ -21,6 +21,14 @@ function cleanMessage(message) {
     );
 }
 
+function timeAMessage(MarkovDictionary, client, channel, timedMessage, messageTimer) {
+  return setTimeout(() => {
+      client.channels.get(channel).send(MarkovDictionary.createMarkovSentence());
+      this.timedMessage = timeAMessage(MarkovDictionary, client, channel);
+  }, messageTimer )
+}
+
+
 function pullMessages(channelID, begin, client) {
   const channel = client.channels.get(channelID);
   if (channel == null) {
@@ -82,6 +90,9 @@ class MarkovModule {
     this.db = new sqlite3.Database('../db/AloseDB.db');
     this.MarkovDictionary = new dictionary();
     this.willAuto = false;
+    this.timedMessage;
+    this.messageCap = 0;
+    this.seenMessages = 0;
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -226,20 +237,65 @@ class MarkovModule {
       }
     });
 
+    this.dispatch.hook('!setmessagecap', (message) => {
+      const channel = this.config.get('bot-channel');
+      if (message.channel.id === channel) {
+        const split = message.content.split(' ');
+        let newCap = parseInt(split[1]);
+        if (isNaN(newCap)) { client.channels.get(message.channel.id).send('That is not a number!'); }
+        else {
+          this.seenMessages = 0;
+          this.messageCap = newCap;
+          this.messageCap > 0 ?
+              client.channels.get(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
+              client.channels.get(message.channel.id).send(`Message interval disabled.`);
+        }
+      }
+    });
+
+    this.dispatch.hook(null, (message) => {
+      const channel = this.config.get('general-channel');
+      if (message.channel.id === channel && !message.author.bot) {
+        this.seenMessages++;
+        if (this.seenMessages === this.messageCap && messageCap > 0) {
+          this.seenMessages = 0;
+          const sentence = sentenceGenerator(null, this.MarkovDictionary);
+          message.channel.send(sentence);
+        }
+      }
+    });
+
+    this.dispatch.hook('!settimer', (message) => {
+      const split = message.content.split(' ');
+      let newTimer = parseInt(split[1]);
+      if (isNaN(newTimer)) { message.channel.send('That is not a number!'); }
+      else {
+        messageTimer = newTimer * 60000;
+        clearTimeout(this.timedMessage);
+        const channel = this.config.get('general-channel');
+        if (messageTimer > 0) {
+          this.timedMessage = timeAMessage(this.MarkovDictionary, message.client, channel, this.timedMessage, newTimer);
+          message.channel.send(`Timer set to ${newTimer} minutes.`)
+        } else {
+          message.channel.send(`Timer disabled.`);
+        }    
+      }
+    });
+
     this.dispatch.hook(null, (message) => {
       if (message.channel.type === 'dm' && !message.author.bot) {
         const adminId = this.config.get('admin-id');
         message.client.fetchUser(adminId).then((admin) => {
           if (message.author.id !== adminId) {
               if (!willAuto) {
-                  admin.send(`${message.author.username} sent the following message, reply with !reply "${message.author.id}" and then your message in quotes **or** !auto "${message.author.id}"`);
-                  admin.send(`\`\`\`\n${message.content}\n\`\`\``);
+                admin.send(`${message.author.username} sent the following message, reply with !reply "${message.author.id}" and then your message in quotes **or** !auto "${message.author.id}"`);
+                admin.send(`\`\`\`\n${message.content}\n\`\`\``);
               } else {
-                  admin.send(`${message.author.username} sent the following message, and an automatic reply was sent!"`);
-                  admin.send(`\`\`\`\n${message.content}\n\`\`\``);
-                  const sentence = sentenceGenerator(message, this.MarkovDictionary);
-                  message.author.send(sentence);
-                  admin.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
+                admin.send(`${message.author.username} sent the following message, and an automatic reply was sent!"`);
+                admin.send(`\`\`\`\n${message.content}\n\`\`\``);
+                const sentence = sentenceGenerator(message, this.MarkovDictionary);
+                message.author.send(sentence);
+                admin.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
               }               
           } else {
             const splitWords = message.content.split('"');

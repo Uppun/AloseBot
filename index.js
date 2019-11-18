@@ -457,57 +457,7 @@ client.on('ready', async () => {
 })
 
 client.on('message', (msg) => {
-
-    if (msg.channel.type === 'dm' && !msg.author.bot) {
-        client.fetchUser('121122209728167940').then((pup) => {
-            if (msg.author.id !== '121122209728167940') {
-                if (!willAuto) {
-                    pup.send(`${msg.author.username} sent the following message, reply with !reply "${msg.author.id}" and then your message in quotes **or** !auto "${msg.author.id}"`);
-                    pup.send(`\`\`\`\n${msg.content}\n\`\`\``);
-                } else {
-                    pup.send(`${msg.author.username} sent the following message, and an automatic reply was sent!"`);
-                    pup.send(`\`\`\`\n${msg.content}\n\`\`\``);
-                    const sentence = sentenceGenerator(msg.content);
-                    msg.author.send(sentence);
-                    pup.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
-                }               
-            } else {
-                const splitWords = msg.content.split('"');
-                if (splitWords[1]) {
-                    client.fetchUser(splitWords[1]).then((recipient) => {
-                        if (recipient) {
-                            if (msg.content.startsWith('!reply')) {
-                                let attachments = msg.attachments.array();
-                                checkAttachments(attachments) ? recipient.send(splitWords[3], 
-                                {
-                                    file: attachments[0].url,
-                                }) :
-                                recipient.send(splitWords[3]); 
-                            }
-
-                            if (msg.content.startsWith('!auto')) {
-                                recipient.dmChannel.fetchMessages({limit: 1}).then((message) => {
-                                    const sentence = sentenceGenerator(message.content);
-                                    recipient.send(sentence);
-                                    pup.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
-                                }).catch((reason) => {
-                                    const sentence = sentenceGenerator();
-                                    recipient.send(sentence);
-                                    pup.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
-                                })
-                            }
-                        }
-                    })
-                }
-                if (msg.content.startsWith('!setAuto')) {
-                    willAuto = !willAuto;
-                    pup.send(`Replying automatically to messages set to: ${willAuto}`);
-                }
-            }
-        }); 
-    }
-
-    let hasResponded = false;
+    
     if (msg.content.startsWith('!sleep') && msg.channel.id === botChannel) {
         isAwake = !isAwake;
         isAwake ? 
@@ -524,41 +474,6 @@ client.on('message', (msg) => {
                 const message = coinCounter <= 0 ? 'Okay... I wont share my coins anymore...' : `Okay! I'll share my coins after ${coinCounter} messages!`;
                 client.channels.get(msg.channel.id).send(message);
             }*/
-
-            if (msg.content.startsWith('!banword')) {
-                const split = msg.content.split(' ');
-                if (split.length >= 2) {
-                    const bannedWord = split[1].toLowerCase();
-                    if (MarkovDictionary.addBannedWord(bannedWord)) {
-                        db.run(`
-                        INSERT INTO bannedwords (word_text)
-                        VALUES (?)
-                        `, [bannedWord], (err) => {
-                          if (err) {
-                            console.error(err.message);
-                          }
-                        });
-                        client.channels.get(msg.channel.id).send(`${split[1]} is now on my naughty list!`);
-                    } else {
-                        db.run(`
-                        DELETE FROM bannedwords WHERE word_text=?`, bannedWord, (err) => {
-                          if (err) {
-                            console.error(err.message);
-                          }
-                        });
-                        client.channels.get(msg.channel.id).send(`Ban on ${split[1]} removed!`);
-                    }
-                }
-            }
-    
-            if (msg.content.startsWith('!banlist')) {
-                const bannedWords = MarkovDictionary.getBannedWords();
-                let bannedWordsDisplay = 'I am not allowed to say the following words:\n';
-                for (let i = 0; i < bannedWords.length; i++) {
-                    bannedWordsDisplay += ` - ${bannedWords[i]}\n`;
-                }
-                client.channels.get(msg.channel.id).send(bannedWordsDisplay);
-            }
 
             /*if ((/^!removeshop\s\d+$/).test(msg.content)) {
                 let itemIndex = msg.content.split(' ')[1];
