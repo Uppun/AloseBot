@@ -30,7 +30,7 @@ class KeywordModule {
         });
 
         this.dispatch.hook('!addword', (message) => {
-            const channels = this.config.get('mod-channels');
+            const channels = this.config.get('bot-channel');
 
             if (channels.includes(message.channel.id)) {
                 if ((/^!addword\s"(\w+)"\s"(\w+)"$/).test(message.content)) {
@@ -52,7 +52,7 @@ class KeywordModule {
         });
         
         this.dispatch.hook('!removeword', (message) => {
-            const channels = this.config.get('mod-channels');
+            const channels = this.config.get('bot-channel');
 
             if (channels.includes(message.channel.id)) {
                 if ((/^!removeword\s"(\w+)"$/).test(message.content)) {

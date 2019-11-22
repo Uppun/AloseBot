@@ -60,8 +60,8 @@ class BirthdayModule {
                 }
     
                 longTimeout(() => {
-                    this.client.channels.get(config.get).send(`It's <@${id}> 's birthday!`);
-                }, birthDate.getTime('general-channel') - currentDate.getTime(), this.client);
+                    this.client.channels.get(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
+                }, birthDate.getTime() - currentDate.getTime(), this.client);
             }
         });
         

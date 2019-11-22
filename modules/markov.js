@@ -195,7 +195,7 @@ class MarkovModule {
     });
 
     this.dispatch.hook('!banword', (message) => {
-      const channels = this.config.get('mod-channels');
+      const channels = this.config.get('bot-channel');
       if (channels.includes(message.channel.id)) {
         const bannedWordsParts = message.content.split(' ');
         if (bannedWordsParts.length >= 2) {
@@ -226,7 +226,7 @@ class MarkovModule {
     });
 
     this.dispatch.hook('!banlist', (message) => {
-      const channels = this.config.get('mod-channels');
+      const channels = this.config.get('bot-channel');
       if (channels.includes(message.channel.id)) {
         const bannedWords = this.MarkovDictionary.getBannedWords();
         let bannedWordsDisplay = 'I am not allowed to say the following words:\n';
