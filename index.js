@@ -5,14 +5,10 @@ const configTracker = require('./configtracker');
 const modules = fs.readdirSync('./modules');
 
 const client = new Discord.Client();
-const messageParser = new parser();
+const dispatch = new parser();
 const config = new configTracker();
+const context = {dispatch, config, client};
 let isAwake = true;
-
-for (const moduleName of modules) {
-    const module = require('./modules/' + moduleName);
-    const testModule = new module(messageParser);
-}
 
 client.on('error', (error) => {
     console.error(new Date() + ": Discord client encountered an error");
@@ -20,7 +16,11 @@ client.on('error', (error) => {
 })
 
 client.on('ready', async () => {
-    console.log('here i go')
+    console.log('here i go');
+    for (const moduleName of modules) {
+        const Module = require('./modules/' + moduleName);
+        const testModule = new Module(context);
+    }
 })
 
 client.on('message', (msg) => {
@@ -34,9 +34,9 @@ client.on('message', (msg) => {
 
     if (isAwake) {
         if (config.get('listen-channels').includes(msg.channel.id)) {
-            messageParser.informModules(msg);
+            dispatch.informModules(msg);
         }
     }
 });
 
-client.login(config.get('bot-token'));
+client.login(config.get('bot-token'));  

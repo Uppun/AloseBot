@@ -3,7 +3,7 @@ const config = JSON.parse(fs.readFileSync('config.txt'), 'utf8');
 
 class ConfigTracker {
     get(option) {
-        return config[option];
+      return config[option];
     }
     set(option, value) {
       config[option] = value;

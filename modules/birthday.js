@@ -1,4 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 function longTimeout(cb, delay, client) {
     const MAX_DELAY = Math.pow(2, 31)-1;
@@ -20,7 +21,7 @@ class BirthdayModule {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
-        this.db = new sqlite3.Database('../db/AloseDB.db');
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
         this.birthdays = {};
 
         this.db.run(`
@@ -28,22 +29,28 @@ class BirthdayModule {
           user_id TEXT,
           date_text TEXT,
           PRIMARY KEY (user_id)
-        )
-        `);
+        )`, (err) => { 
+            if(err) {
+                console.error(err.message);
+            }
+            console.log('Birthday table created.');
+        });
 
         const birthdaySql = `SELECT user_id, date_text FROM birthdays ORDER by user_id`;
 
-        db.all(birthdaySql, [], (err, rows) => {
+        this.db.all(birthdaySql, [], (err, rows) => {
             if (err) {
                 throw err;
             }
             rows.forEach((row) => {
-                birthdays[row.user_id] = row.date_text;
+                this.birthdays[row.user_id] = row.date_text;
             });
+
+            console.log('birthdays loaded')
         });
 
-        Object.keys(birthdays).forEach((id) => {
-            const date = birthdays[id];
+        Object.keys(this.birthdays).forEach((id) => {
+            const date = this.birthdays[id];
             const dateString = date.split('/');
             if (dateString.length === 2) {
                 const birthDate = new Date();
@@ -66,14 +73,14 @@ class BirthdayModule {
         });
         
         this.dispatch.hook('!mybirthday', (message) => {
-            const channel = config.get('bot-speak-channel');
+            const channel = this.config.get('bot-speak-channel');
             const botChannel = this.config.get('bot-channel');
             if (message.channel.id === channel && (/^!mybirthday\s\d{1,2}\/\d{1,2}$/).test(message.content)) {
                 const splitMessage = message.content.split(' ');
                 const dateString = splitMessage[1].split('/');
                 if (parseInt(dateString[0], 10) < 13 && parseInt(dateString[1], 10) < 32) {
-                    birthdays[message.author.id] = splitMessage[1];
-                    db.run(`
+                    this.birthdays[message.author.id] = splitMessage[1];
+                    this.db.run(`
                     INSERT INTO birthdays (user_id, date_text)
                     VALUES (?, ?)
                     `, [message.author.id, splitMessage[1]], (err) => {

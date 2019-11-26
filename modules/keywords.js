@@ -1,4 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
@@ -8,7 +9,7 @@ class KeywordModule {
     constructor(context) {
         this.dispatch = context.dispatch;
         this.config = context.config;
-        this.db = new sqlite3.Database('../db/AloseDB.db');
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
         this.keyWords = {};
 
         this.db.run(`
@@ -16,7 +17,7 @@ class KeywordModule {
             keyword_text TEXT,
             response_text TEXT,
             PRIMARY KEY (keyword_text, response_text)
-        )`);
+        )`, (err) => { if(err) console.error(err.message)});
 
         const keywordSql = `SELECT keyword_text, response_text FROM keywords`;
 
@@ -29,17 +30,19 @@ class KeywordModule {
             });
         });
 
+        console.log('Keywords loaded');
+
         this.dispatch.hook('!addword', (message) => {
             const channels = this.config.get('bot-channel');
 
             if (channels.includes(message.channel.id)) {
-                if ((/^!addword\s"(\w+)"\s"(\w+)"$/).test(message.content)) {
+                if ((/^!addword\s"[^"\r\n]*"\s"[^"\r\n]*"$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     this.keyWords[splitMessage[1]] = splitMessage[3];
                     this.db.run(`
                     INSERT INTO keywords (keyword_text, response_text)
                     VALUES (?, ?)
-                    `, [splitWords[1], splitWords[3]], (err) => {
+                    `, [splitMessage[1], splitMessage[3]], (err) => {
                       if (err) {
                         console.error(err.message);
                       }
@@ -58,9 +61,9 @@ class KeywordModule {
                 if ((/^!removeword\s"(\w+)"$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     if (this.keyWords[splitMessage[1]]) {
-                        delete keywords[splitMessage[1]];
+                        delete this.keyWords[splitMessage[1]];
                         this.db.run(`
-                        DELETE FROM keywords WHERE keyword_text=?`, splitWords[1], (err) => {
+                        DELETE FROM keywords WHERE keyword_text=?`, splitMessage[1], (err) => {
                           if (err) {
                             console.error(err.message);
                           }
@@ -75,16 +78,24 @@ class KeywordModule {
             }
         });
 
+        this.dispatch.hook('!wordlist', (message) => {
+            let string = 'My phrase associations are: \n'
+            for (const [key, value] of Object.entries(this.keyWords)) {
+                string += `${key} => ${value}\n`;
+            }
+            message.channel.send(string);
+        });
+
         this.dispatch.hook(null, (message) => {
             //Listen for keywords in messages.
 
             const channels = this.config.get('reply-channels');
 
-            if (channels.includes(message.channel.id) && !message.isMemberMentioned(message.client.user)) {
-                for (const key of Object.keys(cannedResponses)) {
+            if (channels.includes(message.channel.id) && !message.author.bot) {
+                for (const key of Object.keys(this.keyWords)) {
                     const wordChecker = new RegExp("(?<=\\s|^)" + escapeRegExp(key) + "(?=\\s|$|[?!.,])");
-                    if (wordChecker.test(msg.content)) {
-                        msg.channel.send(cannedResponses[key]);
+                    if (wordChecker.test(message.content)) {
+                        message.channel.send(this.keyWords[key]);
                     }
                 }
             }

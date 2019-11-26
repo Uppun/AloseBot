@@ -26,9 +26,11 @@ class EightBallModule {
             const botSpeakChannel = this.config.get('bot-speak-channel');
             if ((message.channel.id === botSpeakChannel || message.channel.id === botChannel)) {
                 let eightBallString =  `\`\`\`🡺 ${message.member.displayName} throws the magic 8ball.\n…\n`
-                eightBallString += eightBallReplies[Math.floor(Math.random() * eightBallReplies.length)];
+                eightBallString += this.replies[Math.floor(Math.random() * this.replies.length)];
                 message.channel.send(eightBallString);
             }
         });
     }
 }
+
+module.exports = EightBallModule;

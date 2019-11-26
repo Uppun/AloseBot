@@ -1,5 +1,6 @@
 const dictionary = require('../dictionary');
 const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 const FETCH_LIMIT = 100;
 
 function cleanMessage(message) {
@@ -21,15 +22,15 @@ function cleanMessage(message) {
     );
 }
 
-function timeAMessage(MarkovDictionary, client, channel, timedMessage, messageTimer) {
+function timeAMessage(MarkovDictionary, client, channel, messageTimer) {
   return setTimeout(() => {
       client.channels.get(channel).send(MarkovDictionary.createMarkovSentence());
-      this.timedMessage = timeAMessage(MarkovDictionary, client, channel);
+      this.timedMessage = timeAMessage(MarkovDictionary, client, channel, messageTimer);
   }, messageTimer )
 }
 
 
-function pullMessages(channelID, begin, client) {
+function pullMessages(channelID, begin, client, db) {
   const channel = client.channels.get(channelID);
   if (channel == null) {
     throw new Error(`bad channel ID: ${channelID}`);
@@ -55,12 +56,19 @@ function pullMessages(channelID, begin, client) {
 
       filteredMessages.forEach(message => {
         // console.log(`--- writing ${channel.id}, ${message.id}`);
-        saveMessage(message);
+        db.run(`
+        INSERT INTO messages (message_id, message_text, author_id, channel_id)
+        VALUES (?, ?, ?, ?)
+        `, [message.id, message.content, message.author.id, message.channel.id], (err) => {
+          if (err) {
+            console.error(err.message);
+          }
+        });
       });
       console.log(`[${debugName}] saved ${filteredMessages.size} of ${messages.size} messages`);
 
       if (messages.size === FETCH_LIMIT) {
-        return pullMessages(channelID, messages.first().id);
+        return pullMessages(channelID, messages.first().id, client, db);
       }
     })
     .catch(error => {
@@ -70,7 +78,7 @@ function pullMessages(channelID, begin, client) {
 
 function sentenceGenerator(message, MarkovDictionary) {
   let sentence;
-  if (message.content) {
+  if(message) {
     const words = cleanMessage(message.content).split(/[\s]+/).slice(1);
     let markovWord;
     if (words.length > 0) {
@@ -80,6 +88,7 @@ function sentenceGenerator(message, MarkovDictionary) {
   } else {
     sentence = MarkovDictionary.createMarkovSentence();
   }
+
   return sentence;
 }
 
@@ -87,12 +96,15 @@ class MarkovModule {
   constructor(context) {
     this.dispatch = context.dispatch;
     this.config = context.config;
-    this.db = new sqlite3.Database('../db/AloseDB.db');
+    this.client = context.client;
+    this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
     this.MarkovDictionary = new dictionary();
     this.willAuto = false;
     this.timedMessage;
     this.messageCap = 0;
     this.seenMessages = 0;
+    this.messageTimer = 0;
+    this.timedMessage;
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -101,20 +113,18 @@ class MarkovModule {
         author_id TEXT,
         message_text TEXT,
         PRIMARY KEY (channel_id, message_id)
-      )`
-    );
+      )`, (err) => { if(err) console.error(err.message)});
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS bannedwords (
         word_text TEXT,
         PRIMARY KEY (word_text)
-      )`
-    );
+      )`, (err) => { if(err) console.error(err.message)});
 
-    const usedChannels = JSON.parse(this.config.get('listen-channels'));
+    const usedChannels = this.config.get('listen-channels');
     const promises = new Map();
-    const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start, this.client));
-  
+    const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start, this.client, this.db));
+
     const sql = `
     SELECT
       channel_id,
@@ -122,10 +132,15 @@ class MarkovModule {
     FROM messages
     GROUP BY channel_id
     `;
-    db.each(sql, (err, row) => {
-      const lastSeenMessageID = row['last_seen_message'];
-      if (lastSeenMessageID != null) {
-        makePullPromise(row['channel_id'], row['last_seen_message']);
+    this.db.each(sql, (err, row) => {
+      if (err) {
+        console.error(err.message);
+      }
+      if (usedChannels.includes(row['channel_id'])) {
+        const lastSeenMessageID = row['last_seen_message'];
+        if (lastSeenMessageID != null) {
+          makePullPromise(row['channel_id'], row['last_seen_message']);
+        }
       }
     }, async () => {
       for (const channelID of usedChannels) {
@@ -146,12 +161,8 @@ class MarkovModule {
         throw err;
       }
       rows.forEach((row) => {
-        const lines = cleanMessage(MarkovDictionary.addLine(row.message_text));
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i] !== '') {
-            this.MarkovDictionary.addLine(lines[i]);
-          }
-        }
+        const line = cleanMessage(row.message_text);
+        this.MarkovDictionary.addLine(line);  
       });
     });
 
@@ -247,8 +258,8 @@ class MarkovModule {
           this.seenMessages = 0;
           this.messageCap = newCap;
           this.messageCap > 0 ?
-              client.channels.get(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
-              client.channels.get(message.channel.id).send(`Message interval disabled.`);
+            this.client.channels.get(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
+            this.client.channels.get(message.channel.id).send(`Message interval disabled.`);
         }
       }
     });
@@ -257,7 +268,7 @@ class MarkovModule {
       const channel = this.config.get('general-channel');
       if (message.channel.id === channel && !message.author.bot) {
         this.seenMessages++;
-        if (this.seenMessages === this.messageCap && messageCap > 0) {
+        if (this.seenMessages === this.messageCap && this.messageCap > 0) {
           this.seenMessages = 0;
           const sentence = sentenceGenerator(null, this.MarkovDictionary);
           message.channel.send(sentence);
@@ -270,11 +281,11 @@ class MarkovModule {
       let newTimer = parseInt(split[1]);
       if (isNaN(newTimer)) { message.channel.send('That is not a number!'); }
       else {
-        messageTimer = newTimer * 60000;
+        this.messageTimer = newTimer * 60000;
         clearTimeout(this.timedMessage);
         const channel = this.config.get('general-channel');
-        if (messageTimer > 0) {
-          this.timedMessage = timeAMessage(this.MarkovDictionary, message.client, channel, this.timedMessage, newTimer);
+        if (this.messageTimer > 0) {
+          this.timedMessage = timeAMessage(this.MarkovDictionary, message.client, channel, this.messageTimer);
           message.channel.send(`Timer set to ${newTimer} minutes.`)
         } else {
           message.channel.send(`Timer disabled.`);

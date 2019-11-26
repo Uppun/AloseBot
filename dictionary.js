@@ -53,14 +53,12 @@ class Dictionary {
 
     createMarkovSentence(start) {
         let sentence = '';
-
         if (!this.dictionaryMap.has(start) || !start.replace(/\s/g, '').length || this.bannedWords.includes(start.toLowerCase())) {
             const words = Array.from(this.dictionaryMap.keys());
             sentence = words[Math.floor(Math.random() * words.length)];
         } else {
             sentence = start;
         }
-
         let possibleNextWords = this.dictionaryMap.get(sentence);
         for (let i = 1; i <= 200; i++) {
             
