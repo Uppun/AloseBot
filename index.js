@@ -33,9 +33,7 @@ client.on('message', (msg) => {
     }
 
     if (isAwake) {
-        if (config.get('listen-channels').includes(msg.channel.id)) {
-            dispatch.informModules(msg);
-        }
+        dispatch.informModules(msg);
     }
 });
 

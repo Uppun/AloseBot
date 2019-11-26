@@ -227,7 +227,7 @@ class MarkovModule {
                   console.error(err.message);
                 }
               });
-              message.channel.send(`${split[1]} is now on my naughty list!`);
+              message.channel.send(`${bannedWord} is now on my naughty list!`);
           } else {
             this.db.run(`
             DELETE FROM bannedwords WHERE word_text=?`, bannedWord, (err) => {
@@ -235,7 +235,7 @@ class MarkovModule {
                 console.error(err.message);
               }
             });
-            message.channel.send.send(`Ban on ${split[1]} removed!`);
+            message.channel.send(`Ban on ${bannedWord} removed!`);
           }
         } else {
           message.channel.send('Invalid word')

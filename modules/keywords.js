@@ -38,9 +38,9 @@ class KeywordModule {
 
 
         this.dispatch.hook('!addword', (message) => {
-            const channels = this.config.get('bot-channel');
+            const channel = this.config.get('bot-channel');
 
-            if (channels.includes(message.channel.id)) {
+            if (channel === message.channel.id) {
                 if ((/^!addword\s"[^"\r\n]*"\s"[^"\r\n]*"$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     this.keyWords[splitMessage[1]] = splitMessage[3];
@@ -60,9 +60,9 @@ class KeywordModule {
         });
         
         this.dispatch.hook('!removeword', (message) => {
-            const channels = this.config.get('bot-channel');
+            const channel = this.config.get('bot-channel');
 
-            if (channels.includes(message.channel.id)) {
+            if (channel === message.channel.id) {
                 if ((/^!removeword\s"(\w+)"$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     if (this.keyWords[splitMessage[1]]) {
@@ -84,11 +84,15 @@ class KeywordModule {
         });
 
         this.dispatch.hook('!wordlist', (message) => {
-            let string = 'My phrase associations are: \n'
-            for (const [key, value] of Object.entries(this.keyWords)) {
-                string += `${key} => ${value}\n`;
+            const channel = this.config.get('bot-channel');
+
+            if (channel === message.channel.id) {
+                let string = 'My phrase associations are: \n'
+                for (const [key, value] of Object.entries(this.keyWords)) {
+                    string += `${key} => ${value}\n`;
+                }
+                message.channel.send(string);
             }
-            message.channel.send(string);
         });
 
         this.dispatch.hook(null, (message) => {
