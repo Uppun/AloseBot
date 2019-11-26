@@ -17,20 +17,25 @@ class KeywordModule {
             keyword_text TEXT,
             response_text TEXT,
             PRIMARY KEY (keyword_text, response_text)
-        )`, (err) => { if(err) console.error(err.message)});
-
-        const keywordSql = `SELECT keyword_text, response_text FROM keywords`;
-
-        this.db.all(keywordSql, [], (err, rows) => {
-            if (err) {
-                throw err;
+        )`, 
+        (err) => { 
+            if(err) {
+                console.error(err.message);
             }
-            rows.forEach((row) => {
-                this.keyWords[row.keyword_text] = row.response_text;
+            const keywordSql = `SELECT keyword_text, response_text FROM keywords`;
+
+            this.db.all(keywordSql, [], (err, rows) => {
+                if (err) {
+                    throw err;
+                }
+                rows.forEach((row) => {
+                    this.keyWords[row.keyword_text] = row.response_text;
+                });
             });
+    
+            console.log('Keywords loaded');
         });
 
-        console.log('Keywords loaded');
 
         this.dispatch.hook('!addword', (message) => {
             const channels = this.config.get('bot-channel');

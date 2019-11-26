@@ -34,44 +34,44 @@ class BirthdayModule {
                 console.error(err.message);
             }
             console.log('Birthday table created.');
-        });
 
-        const birthdaySql = `SELECT user_id, date_text FROM birthdays ORDER by user_id`;
+            const birthdaySql = `SELECT user_id, date_text FROM birthdays ORDER by user_id`;
 
-        this.db.all(birthdaySql, [], (err, rows) => {
-            if (err) {
-                throw err;
-            }
-            rows.forEach((row) => {
-                this.birthdays[row.user_id] = row.date_text;
-            });
-
-            console.log('birthdays loaded')
-        });
-
-        Object.keys(this.birthdays).forEach((id) => {
-            const date = this.birthdays[id];
-            const dateString = date.split('/');
-            if (dateString.length === 2) {
-                const birthDate = new Date();
-                const currentDate = new Date();
-                birthDate.setMonth(parseInt(dateString[0], 10) - 1);
-                birthDate.setDate(parseInt(dateString[1], 10));
-                birthDate.setHours(0);
-                birthDate.setMinutes(0);
-                birthDate.setSeconds(0);
-                birthDate.setMilliseconds(0);
-    
-                if (birthDate.getTime() < currentDate.getTime()) {
-                    birthDate.setFullYear(birthDate.getFullYear() + 1);
+            this.db.all(birthdaySql, [], (err, rows) => {
+                if (err) {
+                    throw err;
                 }
+                rows.forEach((row) => {
+                    this.birthdays[row.user_id] = row.date_text;
+                });
     
-                longTimeout(() => {
-                    this.client.channels.get(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
-                }, birthDate.getTime() - currentDate.getTime(), this.client);
-            }
+                console.log('birthdays loaded')
+
+                Object.keys(this.birthdays).forEach((id) => {
+                    const date = this.birthdays[id];
+                    const dateString = date.split('/');
+                    if (dateString.length === 2) {
+                        const birthDate = new Date();
+                        const currentDate = new Date();
+                        birthDate.setMonth(parseInt(dateString[0], 10) - 1);
+                        birthDate.setDate(parseInt(dateString[1], 10));
+                        birthDate.setHours(0);
+                        birthDate.setMinutes(0);
+                        birthDate.setSeconds(0);
+                        birthDate.setMilliseconds(0);
+            
+                        if (birthDate.getTime() < currentDate.getTime()) {
+                            birthDate.setFullYear(birthDate.getFullYear() + 1);
+                        }
+            
+                        longTimeout(() => {
+                            this.client.channels.get(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
+                        }, birthDate.getTime() - currentDate.getTime(), this.client);
+                    }
+                });
+            });
         });
-        
+      
         this.dispatch.hook('!mybirthday', (message) => {
             const channel = this.config.get('bot-speak-channel');
             const botChannel = this.config.get('bot-channel');

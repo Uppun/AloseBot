@@ -113,67 +113,74 @@ class MarkovModule {
         author_id TEXT,
         message_text TEXT,
         PRIMARY KEY (channel_id, message_id)
-      )`, (err) => { if(err) console.error(err.message)});
+      )`, (err) => { 
+        if (err) {
+          console.error(err.message)
+        }
+        const usedChannels = this.config.get('listen-channels');
+        const promises = new Map();
+        const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start, this.client, this.db));
+    
+        const sql = `
+        SELECT
+          channel_id,
+          MAX(message_id) AS last_seen_message
+        FROM messages
+        GROUP BY channel_id
+        `;
+        this.db.each(sql, (err, row) => {
+          if (err) {
+            console.error(err.message);
+          }
+          if (usedChannels.includes(row['channel_id'])) {
+            const lastSeenMessageID = row['last_seen_message'];
+            if (lastSeenMessageID != null) {
+              makePullPromise(row['channel_id'], row['last_seen_message']);
+            }
+          }
+        }, async () => {
+          for (const channelID of usedChannels) {
+            if (!promises.has(channelID)) {
+              makePullPromise(channelID);
+            }
+          }
+      
+          await Promise.all(promises.values());
+          console.log('done');
+
+          const messageSql = `SELECT message_text, message_id FROM messages ORDER BY message_id`;
+          this.db.all(messageSql, [], (err, rows) => {
+            if (err) {
+              throw err;
+            }
+            rows.forEach((row) => {
+              const line = cleanMessage(row.message_text);
+              this.MarkovDictionary.addLine(line);  
+            });
+          });
+        });
+      });
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS bannedwords (
         word_text TEXT,
         PRIMARY KEY (word_text)
-      )`, (err) => { if(err) console.error(err.message)});
-
-    const usedChannels = this.config.get('listen-channels');
-    const promises = new Map();
-    const makePullPromise = (id, start = 1) => promises.set(id, pullMessages(id, start, this.client, this.db));
-
-    const sql = `
-    SELECT
-      channel_id,
-      MAX(message_id) AS last_seen_message
-    FROM messages
-    GROUP BY channel_id
-    `;
-    this.db.each(sql, (err, row) => {
-      if (err) {
-        console.error(err.message);
-      }
-      if (usedChannels.includes(row['channel_id'])) {
-        const lastSeenMessageID = row['last_seen_message'];
-        if (lastSeenMessageID != null) {
-          makePullPromise(row['channel_id'], row['last_seen_message']);
+      )`, (err) => { 
+        if (err) {
+          console.error(err.message)
         }
-      }
-    }, async () => {
-      for (const channelID of usedChannels) {
-        if (!promises.has(channelID)) {
-          makePullPromise(channelID);
-        }
-      }
-  
-      await Promise.all(promises.values());
-      console.log('done');
-    });
+        const bannedSql = `SELECT word_text FROM bannedwords`;
 
-    const messageSql = `SELECT message_text, message_id FROM messages ORDER BY message_id`;
-    const bannedSql = `SELECT word_text FROM bannedwords`;
-
-    this.db.all(messageSql, [], (err, rows) => {
-      if (err) {
-        throw err;
-      }
-      rows.forEach((row) => {
-        const line = cleanMessage(row.message_text);
-        this.MarkovDictionary.addLine(line);  
+        this.db.all(bannedSql, [], (err, rows) => {
+          if (err) {
+            throw err;
+          }
+          rows.forEach((row) => {
+            this.MarkovDictionary.addBannedWord(row.word_text);
+          });
+        });
       });
-    });
 
-    this.db.all(bannedSql, [], (err, rows) => {
-      if (err) {
-        throw err;
-      }
-      rows.forEach((row) => {
-        this.MarkovDictionary.addBannedWord(row.word_text);
-      });
-    });
 
     this.dispatch.hook(null, (message) => {
       //Add a message to Markov dictionary
