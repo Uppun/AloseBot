@@ -1,4 +1,3 @@
-
 const fileTypes = [
     'jpg',
     'jpeg',

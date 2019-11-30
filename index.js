@@ -15,7 +15,7 @@ client.on('error', (error) => {
     console.error(error);
 })
 
-client.on('ready', async () => {
+client.once('ready', async () => {
     console.log('here i go');
     for (const moduleName of modules) {
         const Module = require('./modules/' + moduleName);
