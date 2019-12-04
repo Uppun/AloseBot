@@ -101,10 +101,13 @@ class MarkovModule {
     this.MarkovDictionary = new dictionary();
     this.willAuto = false;
     this.timedMessage;
-    this.messageCap = 0;
+    this.messageCap = this.config.get('message-cap');
     this.seenMessages = 0;
-    this.messageTimer = 0;
+    this.messageTimer = this.config.get('message-timer');
     this.timedMessage;
+    if (this.messageTimer) {
+      this.timedMessage = timeAMessage(this.MarkovDictionary, this.client, this.config.get('general-channel'), this.messageTimer);
+    }
 
     this.db.run(`
       CREATE TABLE IF NOT EXISTS messages (
