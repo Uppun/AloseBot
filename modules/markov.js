@@ -308,7 +308,7 @@ class MarkovModule {
         const adminId = this.config.get('admin-id');
         message.client.fetchUser(adminId).then((admin) => {
           if (message.author.id !== adminId) {
-              if (!willAuto) {
+              if (!this.willAuto) {
                 admin.send(`${message.author.username} sent the following message, reply with !reply "${message.author.id}" and then your message in quotes **or** !auto "${message.author.id}"`);
                 admin.send(`\`\`\`\n${message.content}\n\`\`\``);
               } else {
