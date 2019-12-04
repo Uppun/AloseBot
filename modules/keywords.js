@@ -41,7 +41,7 @@ class KeywordModule {
             const channel = this.config.get('bot-channel');
 
             if (channel === message.channel.id) {
-                if ((/^!addword\s"[^"\r\n]*"\s"[^"\r\n]*"$/).test(message.content)) {
+                if ((/^!addword\s(("[^"\r\n]*")|(“[^"\r\n]*”))\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     this.keyWords[splitMessage[1]] = splitMessage[3];
                     this.db.run(`
@@ -63,7 +63,7 @@ class KeywordModule {
             const channel = this.config.get('bot-channel');
 
             if (channel === message.channel.id) {
-                if ((/^!removeword\s"(\w+)"$/).test(message.content)) {
+                if ((/^!removeword\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     if (this.keyWords[splitMessage[1]]) {
                         delete this.keyWords[splitMessage[1]];

@@ -195,10 +195,8 @@ class MarkovModule {
           }
         });
         const lines = cleanMessage(message.content);
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i] !== '') {
-            this.MarkovDictionary.addLine(lines[i]);
-          }
+        if (lines !== '') {
+          this.MarkovDictionary.addLine(lines);
         }
       }
     });
