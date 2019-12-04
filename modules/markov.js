@@ -99,11 +99,11 @@ class MarkovModule {
     this.client = context.client;
     this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
     this.MarkovDictionary = new dictionary();
-    this.willAuto = false;
+    this.willAuto = this.config.get('auto-reply');
     this.timedMessage;
     this.messageCap = this.config.get('message-cap');
     this.seenMessages = 0;
-    this.messageTimer = this.config.get('message-timer');
+    this.messageTimer = this.config.get('message-timer') * 60000;
     this.timedMessage;
     if (this.messageTimer) {
       this.timedMessage = timeAMessage(this.MarkovDictionary, this.client, this.config.get('general-channel'), this.messageTimer);
@@ -268,6 +268,7 @@ class MarkovModule {
           this.messageCap > 0 ?
             this.client.channels.get(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
             this.client.channels.get(message.channel.id).send(`Message interval disabled.`);
+          this.config.set('message-cap', newCap);
         }
       }
     });
@@ -297,7 +298,8 @@ class MarkovModule {
           message.channel.send(`Timer set to ${newTimer} minutes.`)
         } else {
           message.channel.send(`Timer disabled.`);
-        }    
+        }
+        this.config.set('message-timer', newTimer);    
       }
     });
 
@@ -347,6 +349,7 @@ class MarkovModule {
             if (message.content.startsWith('!setAuto')) {
               this.willAuto = !this.willAuto;
               admin.send(`Replying automatically to messages set to: ${this.willAuto}`);
+              this.config.set('auto-reply', this.willAuto);
             }
           }
         }); 
