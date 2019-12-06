@@ -158,7 +158,9 @@ class MarkovModule {
             }
             rows.forEach((row) => {
               const line = cleanMessage(row.message_text);
-              this.MarkovDictionary.addLine(line);  
+              if(!line.includes('http')) {
+                this.MarkovDictionary.addLine(line);
+              }
             });
           });
         });
@@ -188,7 +190,7 @@ class MarkovModule {
     this.dispatch.hook(null, (message) => {
       //Add a message to Markov dictionary
       const channels = this.config.get('listen-channels');
-      if (channels.includes(message.channel.id)) {
+      if (channels.includes(message.channel.id) && !message.content.includes('http') && !message.author.bot) {
         this.db.run(`
         INSERT INTO messages (message_id, message_text, author_id, channel_id)
         VALUES (?, ?, ?, ?)
