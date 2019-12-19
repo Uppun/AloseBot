@@ -1,11 +1,13 @@
 const Discord = require('discord.js');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 class RoleAssignmentModule {
     constructor(context) {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
-        this.db = context.db;
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
         this.roles = {};
 
         this.db.run(`
@@ -36,7 +38,7 @@ class RoleAssignmentModule {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const name = message.content.substr('!asar'.length).trim();
-                const role = message.guild.roles.find('name', name);
+                const role = message.guild.roles.find(role => role.name === name);
                 if (role) {
                     const id = role.id;
                     this.db.run(`
@@ -47,7 +49,7 @@ class RoleAssignmentModule {
                         console.error(err.message);
                       }
                     });
-                    roles[name] = id;
+                    this.roles[name] = id;
 
                     message.channel.send(`${name} added to the list of assignable roles!`);
                 } else {
@@ -60,7 +62,7 @@ class RoleAssignmentModule {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const name = message.content.substr('!rsar'.length).trim();
-                const role = message.guild.roles.find('name', name);
+                const role = message.guild.roles.find(role => role.name === name);
                 if (role) {
                     this.db.run(`
                     DELETE FROM assignable_roles WHERE role_name=?`, name, (err) => {
