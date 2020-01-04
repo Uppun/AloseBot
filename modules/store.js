@@ -1,10 +1,14 @@
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
 class StoreModule {
     constructor(context) {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
-        this.db = new sqlite3.Database(path.join(__dirname, '../db/StoreDB.db'));
+        this.db = new sqlite3.Database(path.join(__dirname, '../../sharedDBs/StoreDB.db'));
         this.shopPages = [];
+        this.currencies = {};
 
         this.db.run(`
             CREATE TABLE IF NOT EXISTS shop_items (
@@ -13,7 +17,7 @@ class StoreModule {
             PRIMARY KEY (item_name, item_id)
         )`, 
         (err) => { 
-            if(err) {
+            if (err) {
                 console.error(err.message);
             }
             const shopSql = `SELECT item_id, cost FROM shop_items`;
@@ -26,8 +30,31 @@ class StoreModule {
                     this.shopPages.push([row.item_id, row.cost]);
                 });
             });
-
             console.log('Store loaded.');
+        });
+
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS currency_db (
+            user_id TEXT,
+            currency TEXT,
+            PRIMARY KEY (user_id)
+        )`,
+        (err) => {
+            if (err) {
+                console.error(err.message);
+            }
+
+            const currencySql = `SELECT user_id, currency FROM currency_db`;
+
+            this.db.all(currencySql, [], (err, rows) => {
+                if (err) {
+                    throw err;
+                }
+                rows.forEach((row) => {
+                    this.currencies[row.user_id] = row.currency;
+                });
+            });
+            console.log('Currency DB loaded.')
         });
 
         this.dispatch.hook('!addShop', (message) => {

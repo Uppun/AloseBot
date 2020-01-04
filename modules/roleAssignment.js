@@ -17,7 +17,7 @@ class RoleAssignmentModule {
             PRIMARY KEY (role_id, role_name)
         )`, 
         (err) => { 
-            if(err) {
+            if (err) {
                 console.error(err.message);
             }
             const roleSql = `SELECT role_id, role_name FROM assignable_roles`;
@@ -106,7 +106,7 @@ class RoleAssignmentModule {
                 const role = message.content.substr('!iam'.length).trim();
                 const roleId = this.roles[role];
                 if (roleId) {
-                    if(!message.member.roles.find(role => role.id === roleId)) {
+                    if (!message.member.roles.find(role => role.id === roleId)) {
                         message.member.addRole(roleId).then(member => {
                             message.channel.send(`${member.displayName} you now have the ${role} role!`)
                         });

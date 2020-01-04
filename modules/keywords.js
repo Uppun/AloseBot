@@ -19,7 +19,7 @@ class KeywordModule {
             PRIMARY KEY (keyword_text, response_text)
         )`, 
         (err) => { 
-            if(err) {
+            if (err) {
                 console.error(err.message);
             }
             const keywordSql = `SELECT keyword_text, response_text FROM keywords`;

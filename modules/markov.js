@@ -78,7 +78,7 @@ function pullMessages(channelID, begin, client, db) {
 
 function sentenceGenerator(message, MarkovDictionary) {
   let sentence;
-  if(message) {
+  if (message) {
     const words = cleanMessage(message.content).split(/[\s]+/).slice(1);
     let markovWord;
     if (words.length > 0) {
@@ -158,7 +158,7 @@ class MarkovModule {
             }
             rows.forEach((row) => {
               const line = cleanMessage(row.message_text);
-              if(!line.includes('http')) {
+              if (!line.includes('http')) {
                 this.MarkovDictionary.addLine(line);
               }
             });

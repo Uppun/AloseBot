@@ -30,7 +30,7 @@ class BirthdayModule {
           date_text TEXT,
           PRIMARY KEY (user_id)
         )`, (err) => { 
-            if(err) {
+            if (err) {
                 console.error(err.message);
             }
             console.log('Birthday table created.');
