@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const Discord = require('discord.js');
 const GRAB_CODES = [
     'test1',
     'test2',
@@ -23,12 +24,51 @@ function createCoinEmbedd(channel, coinDropAmount, currentCode) {
     coinDropAmount[channel] = coinDrop;
     currentCode[channel] = GRAB_CODES[Math.floor(Math.random() * GRAB_CODES.length)];
 
-    const candyEmbed = new Discord.RichEmbed()
+    const coinEmbed = new Discord.RichEmbed()
         .setTitle(':moneybag: :dog: :moneybag:')
         .setAuthor('Puppy coins!')
         .setColor('#eb6123')
         .setDescription(`type **!grab ${currentCode[channel]}** to grab!`);
-    return candyEmbed;
+    return coinEmbed;
+}
+
+function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
+    const plantEmbed = new Discord.RichEmbed()
+        .setTitle('Alose has dropped a coin purse!')
+        .setDescription(`Alose has dropped a coin purse in the chat! Quickly, pick it up by reacting with :moneybag:!`);
+    client.channels.get(channel).send(plantEmbed).then(message => {
+        message.react('💰');
+        const filter = (reaction, user) => {
+            return (reaction.emoji.name === '💰' && !user.bot);
+        }
+        message.awaitReactions(filter, {time: timerAmount}).then((collected) => {
+            const results = collected.get('💰');
+            if (results) {
+                results.users.forEach(user => {
+                    if (!user.bot) {
+                        let coinUpdateSQL;
+                        if (currencies[user.id]) {
+                            currencies[user.id] = currencies[user.id] + dropAmount;
+                            coinUpdateSQL = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                        } else {
+                            currencies[user.id] = dropAmount;
+                            coinUpdateSQL = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                        }
+
+                        this.db.run(coinUpdateSQL, [this.currencies[user.id], user.id], (err) => {
+                            if (err) {
+                                console.error(err.message);
+                            }
+                        });
+                    }
+                });
+                client.channels.get(channel).send(`You've collected all my coins! Good job! You all get ${dropAmount} coins!`);
+            } else {
+                client.channels.get(channel).send(`Mmm... nobody picked any up...`);
+            }
+            message.delete();
+        });
+    }); 
 }
 
 class CurrencyModule {
@@ -44,8 +84,13 @@ class CurrencyModule {
         this.coinDropAmount = {};
         this.coinMessages = {};
         this.coinTimers = {};
-        this.currentCode = {};  
-
+        this.currentCode = {}; 
+        this.currencies = {}; 
+        this.channels = this.config.get('coin-channels');
+        for (const channel of this.channels) {
+            this.seenMessages[channel] = 0;
+            this.coinActive[channel] = false;
+        }
         this.db.run(`
         CREATE TABLE IF NOT EXISTS currency_db (
         user_id TEXT,
@@ -74,14 +119,14 @@ class CurrencyModule {
         CREATE TABLE IF NOT EXISTS currency_countdown (
         channel TEXT,
         countdown TEXT,
-        PRIMARY KEY (countdown)
+        PRIMARY KEY (channel)
         )`,
         (err) => {
             if (err) {
                 console.error(err.message)
             }
 
-            const countdownSql = `SELECT countdown FROM currency_countdown`;
+            const countdownSql = `SELECT countdown, channel FROM currency_countdown`;
 
             this.db.all(countdownSql, [], (err, rows) => {
                 if (err) {
@@ -95,20 +140,20 @@ class CurrencyModule {
                     }
                 });
             });
+            console.log('Countdowns loaded')
         });
 
         this.dispatch.hook('!grab', (message) => {
-            const channels = this.config.get('coin-channels');
             const currentChannel = message.channel.id;
-            const modIds = this.config.get('mod-ids')
-            if ((/^!grab\s[A-Za-z0-9]+$/).test(message.content) && channels.includes(currentChannel) && !message.member.roles.find(r => modIds.includes(r.id))) {
+            const generalChannel = this.config.get('general-channel');
+            if ((/^!grab\s[A-Za-z0-9]+$/).test(message.content) && this.channels.includes(currentChannel)) {
                 const code = message.content.substr('!grab'.length).trim();
                 if (this.coinActive[currentChannel] && code === this.currentCode[currentChannel]) {
                     const grabber = message.author.id;
                     let coinSql = ``;
                     if (this.currencies[grabber]) {
                         this.currencies[grabber] = this.currencies[grabber] + this.coinDropAmount[currentChannel];
-                        coinSql = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                        coinSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     } else {
                         this.currencies[grabber] = this.coinDropAmount[currentChannel];
                         coinSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
@@ -125,28 +170,25 @@ class CurrencyModule {
                     });
 
                     if (currentChannel === generalChannel) {
-                        this.coinTimers[currentChannel] = coinTimer(currentChannel);
+                        this.coinTimers[currentChannel] = coinTimer(this.client, this.coinActive, currentChannel, this.coinMessages, this.coinDropAmount, this.currentCode);
                     }
-                    message.channel.send(`${message.author.username} grabbed ${this.coinDropAmount[grabber]} candies!`).then(response => {
+                    message.channel.send(`${message.author.username} grabbed ${this.coinDropAmount[currentChannel]} coins!`).then(response => {
                         response.delete(15000);
                     });
                 }
-                msg.delete(1000);
+                message.delete(1000);
             }
         });
 
         this.dispatch.hook('!setcoinGeneral', (message) => {
             const botChannel = this.config.get('bot-channel');
-            const general = this.config.get('general-channel');
             if ((/^!setcoinGeneral\s\d+$/).test(message.content) && message.channel.id === botChannel) {
                 const countdownText = message.content.substr('!setcoinGeneral'.length).trim();
                 this.coinCounterGeneral = parseInt(countdownText, 10);
 
                 this.db.run(`
-                UPDATE currency_countdown
-                SET countdown = ?
-                WHERE channel = ?
-                `, [countdownText, general], (err) => {
+                    REPLACE INTO currency_countdown (countdown, channel) VALUES (?, ?)
+                `, [countdownText, 'general'], (err) => {
                     if (err) {
                         console.error(err.message);
                     }
@@ -159,18 +201,53 @@ class CurrencyModule {
             }
         });
 
+        this.dispatch.hook('!give', (message) => {
+            const modIds = this.config.get('mod-ids');
+            if (message.member.roles.find(r => modIds.includes(r.id))) {
+                if ((/!give\s<@!?(\d+)>\s(\d+)$/).test(message.content)) {
+                    const mentionedUser = message.mentions.users.array()[0];
+                    const id = mentionedUser.id;
+                    const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
+                    let giveSql = '';
+                    if (this.currencies[id]) {
+                        this.currencies[id] = this.currencies[id] + amount, 10;
+                        giveSql = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                    } else {
+                        this.currencies[id] = amount, 10;
+                        giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                    }
+
+                    this.db.run(giveSql, [this.currencies[id], id], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        }
+                    });
+                    message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} coins!`);
+                }
+                if ((/!give\s<@!?(\d+)>\s(\d+)$/).test(message.content)) {
+                    const amount = parseInt(message.content.match(/(\d+)/g)[0], 10);
+                    const giveSql = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                    for (const [id, currency] of Object.entries(this.currencies)) {
+                        this.db.run(giveSql, [id, parseInt(currency, 10) + amount], (err) => {
+                            if (err) {
+                                console.error(err.message);
+                            }
+                        });
+                    }
+                    message.channel.send(`I\'ve given you all ${amount} coins!`);
+                }
+            }
+        });
+
         this.dispatch.hook('!setcoinOther', (message) => {
             const botChannel = this.config.get('bot-channel');
-            const general = this.config.get('general-channel');
             if ((/^!setcoinOther\s\d+$/).test(message.content) && message.channel.id === botChannel) {
                 const countdownText = message.content.substr('!setcoinOther'.length).trim();
                 this.coinCounterOther = parseInt(countdownText, 10);
 
                 this.db.run(`
-                UPDATE currency_countdown
-                SET countdown = ?
-                WHERE channel NOT IN = ?
-                `, [countdownText, general], (err) => {
+                    REPLACE INTO currency_countdown (countdown, channel) VALUES (?, ?)
+                `, [countdownText, 'other'], (err) => {
                     if (err) {
                         console.error(err.message);
                     }
@@ -183,11 +260,32 @@ class CurrencyModule {
             }
         });
 
+        this.dispatch.hook('!plant', (message) => {
+            const botChannel = this.config.get('bot-channel');
+            const generalChannel = this.config.get('general-channel')
+            if (message.channel.id === botChannel && (/^!plant\s(\d+)\stime\s(\d+)$/).test(message.content)) {
+                const numbers = message.content.match(/(\d+)/g);
+                const dropAmount = parseInt(numbers[0], 10);
+                const timerAmount = parseInt(numbers[1], 10) * 60000;
+                coinPurse(generalChannel, dropAmount, timerAmount, this.client, this.db, this.currencies);
+            }
+        });
+
+        this.dispatch.hook('!coinbomb', (message) => {
+            const botChannel = this.config.get('bot-channel');
+            const announceChannel = this.config.get('announce')
+            if (message.channel.id === botChannel && (/^!coinbomb\s(\d+)\stime\s(\d+)$/).test(message.content)) {
+                const numbers = message.content.match(/(\d+)/g);
+                const dropAmount = parseInt(numbers[0], 10);
+                const timerAmount = parseInt(numbers[1], 10) * 60000;
+                coinPurse(announceChannel, dropAmount, timerAmount, this.client, this.db, this.currencies);
+            }
+        });
+
         this.dispatch.hook(null, (message) => {
             const channel = this.config.get('general-channel');
-            const channels = this.config.get('coin-channels');
             const currentChannel = message.channel.id;
-            if (channels.includes(message.channel.id) && !message.author.bot) {
+            if (this.channels.includes(message.channel.id) && !message.author.bot) {
                 let messageCap = 0;
                 if (message.channel.id === channel) {
                     messageCap = this.coinCounterGeneral;
@@ -195,17 +293,17 @@ class CurrencyModule {
                     messageCap = this.coinCounterOther;
                 }
                 this.seenMessages[currentChannel]++;
-              if (this.seenMessages[currentChannel] === messageCap && !coinActive[currentChannel]) {
-                this.seenMessages[currentChannel] = 0;
-                this.coinActive[currentChannel] = true;
-                const coinEmbed = createCoinEmbedd(currentChannel, this.coinDropAmount, this.currentCode);
-                message.channel.send(coinEmbed).then(msg => {
-                    coinMessages[currentChannel] = msg;
-                    clearTimeout(coinTimers[currentChannel]);
-                });
-              }
+              if (this.seenMessages[currentChannel] === messageCap && !this.coinActive[currentChannel]) {
+                    this.seenMessages[currentChannel] = 0;
+                    this.coinActive[currentChannel] = true;
+                    const coinEmbed = createCoinEmbedd(currentChannel, this.coinDropAmount, this.currentCode);
+                    message.channel.send(coinEmbed).then(msg => {
+                        this.coinMessages[currentChannel] = msg;
+                        clearTimeout(this.coinTimers[currentChannel]);
+                    });
+                }
             }
-          });
+        });
     }
 }
 

@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const Discord = require('discord.js');
 
 class StoreModule {
     constructor(context) {
@@ -11,16 +12,15 @@ class StoreModule {
         this.currencies = {};
 
         this.db.run(`
-            CREATE TABLE IF NOT EXISTS shop_items (
-            item_id TEXT,
-            cost TEXT,
-            PRIMARY KEY (item_name, item_id)
-        )`, 
-        (err) => { 
+        CREATE TABLE IF NOT EXISTS shop_items (
+          item_id TEXT,
+          cost TEXT,
+          PRIMARY KEY (item_id)
+        )`, (err) => { 
             if (err) {
                 console.error(err.message);
             }
-            const shopSql = `SELECT item_id, cost FROM shop_items`;
+            const shopSql = `SELECT item_id, cost FROM shop_items ORDER by item_id`;
 
             this.db.all(shopSql, [], (err, rows) => {
                 if (err) {

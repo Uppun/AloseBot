@@ -1,5 +1,4 @@
 const endSymbol = Symbol('rabbit');
-const fs = require('fs');
 
 class Dictionary {
     constructor() {
