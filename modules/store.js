@@ -60,58 +60,95 @@ class StoreModule {
         this.dispatch.hook('!addShop', (message) => {
             const channel = this.config.get('bot-channel');
             if (message.channel.id === channel && (/^!addShop\s<@&(\d+)>\s\d+$/).test(message.content)) {
-                const mentionedRole = message.mentions.roles.array()[0];
-                const roleCost = msg.content.split(' ')[2];
+                const idAndCost = message.content.match(/(\d+)/g);
+                const id = idAndCost[0];
+                const roleCost = parseInt(idAndCost[1], 10);
                 let roleFound = false;
-
-                for (let [i, [role, cost]] of shopPages.entries()) {
-                    if (role === mentionedRole.id) {
-                        shopPages[i][1] = roleCost;
-                        roleFound = true;
-                        this.db.run(`
-                        UPDATE shop_items 
-                        SET cost = ?
-                        WHERE item_id = ? 
-                        `, [roleCost, mentionedRole.id], (err) => {
-                            if (err) {
-                                console.error(err.message);
-                            }
-                        });
-                        message.channel.send(`Role updated!`);
-                        break;
+                const role = message.guild.roles.get(id);
+                if (role) {
+                    for (let [i, [role, cost]] of this.shopPages.entries()) {
+                        if (role === id) {
+                            this.shopPages[i][1] = roleCost;
+                            roleFound = true;
+                            this.db.run(`
+                            UPDATE shop_items 
+                            SET cost = ?
+                            WHERE item_id = ? 
+                            `, [roleCost, id], (err) => {
+                                if (err) {
+                                    console.error(err.message);
+                                }
+                            });
+                            message.channel.send(`Role updated!`);
+                            break;
+                        }
                     }
-                }
 
-                if (!roleFound) {
-                    this.db.run(`
-                    INSERT INTO shop_items (item_id, cost)
-                    VALUES (?, ?)
-                    `, [mentionedRole.id, roleCost], (err) => {
-                    if (err) {
-                        console.error(err.message);
-                    } else {
-                        shopPages.push([mentionedRole.id, roleCost]);
-                        message.channel.send(`Role added!`);
-                    }});          
+                    if (!roleFound) {
+                        this.db.run(`
+                        INSERT INTO shop_items (item_id, cost)
+                        VALUES (?, ?)
+                        `, [id, roleCost], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        } else {
+                            this.shopPages.push([id, roleCost]);
+                            message.channel.send(`Role added!`);
+                        }});          
+                    }
+                } else {
+                    message.channel.send('Error! Role not found.');
                 }
             }
+            
         });
 
         this.dispatch.hook('!removeShop', (message) => {
             const channel = this.config.get('bot-channel');
             if (message.channel.id === channel && (/^!removeShop\s\d+$/).test(message.content)) {
                 let itemIndex = parseInt(message.content.substr('!removeShop'.length).trim(), 10);
-                if (shopPages.length >= itemIndex && itemIndex > 0) {
+                if (this.shopPages.length >= itemIndex && itemIndex > 0) {
                     this.db.run(`
-                    DELETE FROM shop_items WHERE item_id=?`, shopPages[itemIndex - 1][0], (err) => {
+                    DELETE FROM shop_items WHERE item_id=?`, this.shopPages[itemIndex - 1][0], (err) => {
                       if (err) {
                         console.error(err.message);
                       }
                     });
-                    shopPages = shopPages.filter((elements, index) => index !== itemIndex - 1);
+                    this.shopPages = this.shopPages.filter((elements, index) => index !== itemIndex - 1);
                     message.channel.send('Shop item deleted!');
                 } else {
                     message.channel.send('Couldn\'t find item! The proper use of this command is "!removeshop item#');
+                }
+            }
+        });
+
+        this.dispatch.hook('!buy', (message) => {
+            const channel = this.config.get('bot-speak-channel');
+            if ((/^!buy\s(\d+)$/).test(message.content) && message.channel.id === channel) {
+                const itemIndex = parseInt(message.content.match(/(\d+)/g), 10);
+                const role = this.shopPages[itemIndex - 1];
+                if (role){
+                    if (message.member.roles.find(r => r.id === role[0])) {
+                        message.channel.send('You already have this role!');
+                    } else {
+                        if (role[1] > parseInt(this.currencies[message.author.id])) {
+                            message.channel.send('You can\'t afford this role!');
+                        } else {
+                            const setRole = message.guild.roles.find(r => r.id === role[0]);
+                            this.currencies[message.author.id] = parseInt(this.currencies[message.author.id], 10) - parseInt(role[1], 10);
+                            this.db.run(`
+                            UPDATE currency_db 
+                            SET currency = ?
+                            WHERE user_id = ? 
+                            `, [this.currencies[message.author.id], message.author.id], (err) => {
+                                if (err) {
+                                    console.error(err.message);
+                                }
+                            });
+                            message.member.addRole(setRole, 'Bought from store');
+                            message.channel.send('Role purchased!');
+                        }
+                    }
                 }
             }
         });
@@ -139,7 +176,7 @@ class StoreModule {
                         }
                     }
 
-                    if (page && i+1 === shopPages.length) {
+                    if (page && i+1 === this.shopPages.length) {
                         pages.push(page);
                     }
                 }
@@ -162,7 +199,7 @@ class StoreModule {
                     }, Promise.resolve());
                     
                     const reactionCollector = new Discord.ReactionCollector(msg, (reaction, user) => {
-                        return reactionMap.has(reaction.emoji.name) && user.id !== botId;
+                        return reactionMap.has(reaction.emoji.name) && user.id !== this.client.user.id;
                     }, { time: 600000, });
 
                     reactionCollector.on('collect', (reaction, collector) => {

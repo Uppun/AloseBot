@@ -49,7 +49,7 @@ function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
                         let coinUpdateSQL;
                         if (currencies[user.id]) {
                             currencies[user.id] = currencies[user.id] + dropAmount;
-                            coinUpdateSQL = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                            coinUpdateSQL = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                         } else {
                             currencies[user.id] = dropAmount;
                             coinUpdateSQL = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
@@ -109,7 +109,7 @@ class CurrencyModule {
                     throw err;
                 }
                 rows.forEach((row) => {
-                    this.currencies[row.user_id] = row.currency;
+                    this.currencies[row.user_id] = parseInt(row.currency, 10);
                 });
             });
             console.log('Currency DB loaded.')
@@ -180,6 +180,17 @@ class CurrencyModule {
             }
         });
 
+        this.dispatch.hook('!mycoins', (message) => {
+            const botChannel = this.config.get('bot-channel');
+            const botSpeakChannel = this.config.get('bot-speak-channel');
+            const channelId = message.channel.id;
+            if (channelId === botChannel || channelId === botSpeakChannel) {
+                const author = message.author.id;
+                const reply = this.currencies[author] ? `You have ${this.currencies[author]} coins!` : `You have no coins...`;
+                message.channel.send(reply);
+            }
+        });
+
         this.dispatch.hook('!setcoinGeneral', (message) => {
             const botChannel = this.config.get('bot-channel');
             if ((/^!setcoinGeneral\s\d+$/).test(message.content) && message.channel.id === botChannel) {
@@ -211,7 +222,7 @@ class CurrencyModule {
                     let giveSql = '';
                     if (this.currencies[id]) {
                         this.currencies[id] = this.currencies[id] + amount, 10;
-                        giveSql = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                        giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     } else {
                         this.currencies[id] = amount, 10;
                         giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
@@ -224,9 +235,9 @@ class CurrencyModule {
                     });
                     message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} coins!`);
                 }
-                if ((/!give\s<@!?(\d+)>\s(\d+)$/).test(message.content)) {
+                if ((/!give\s(\d+)$/).test(message.content)) {
                     const amount = parseInt(message.content.match(/(\d+)/g)[0], 10);
-                    const giveSql = `UPDATE currency_db SET cost = ? WHERE item_id = ?`;
+                    const giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     for (const [id, currency] of Object.entries(this.currencies)) {
                         this.db.run(giveSql, [id, parseInt(currency, 10) + amount], (err) => {
                             if (err) {
@@ -238,6 +249,32 @@ class CurrencyModule {
                 }
             }
         });
+
+        this.dispatch.hook('!take', (message) => {
+            const modIds = this.config.get('mod-ids');
+            if (message.member.roles.find(r => modIds.includes(r.id))) {
+                if ((/!take\s<@!?(\d+)>\s(\d+)$/).test(message.content)) {
+                    const mentionedUser = message.mentions.users.array()[0];
+                    const id = mentionedUser.id;
+                    const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
+                    let takeSql = '';
+                    if (this.currencies[id]) {
+                        this.currencies[id] = this.currencies[id] - amount < 0 ? 0 : this.currencies[id] - amount;
+                        giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
+                    } else {
+                        this.currencies[id] = 0;
+                        giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                    }
+
+                    this.db.run(takeSql, [this.currencies[id], id], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        }
+                    });
+                    message.channel.send(`Removed coins from ${mentionedUser.username}, they now have ${this.currencies[id]} coins.`);
+                }
+            }
+        })
 
         this.dispatch.hook('!setcoinOther', (message) => {
             const botChannel = this.config.get('bot-channel');
