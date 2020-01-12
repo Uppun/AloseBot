@@ -143,6 +143,18 @@ class CurrencyModule {
             console.log('Countdowns loaded')
         });
 
+        this.dispatch.hook('!showcoins', (message) => {
+            const botSpeakChannel = this.config.get('bot-speak-channel');
+
+            if (message.channel.id === botSpeakChannel && (/^!showcoins\s<@!?(\d+)>$/).test(message.content)) {
+                const userId = message.content.match(/(\d+)/g);
+                const user = message.mentions.members.first().user;
+                const amount = this.currencies[userId];
+                const messageToSend = amount ? `${user.username} has ${amount} coins!` : `${user.username} has no coins!`;
+                message.channel.send(messageToSend);
+            }
+        });
+
         this.dispatch.hook('!grab', (message) => {
             const currentChannel = message.channel.id;
             const generalChannel = this.config.get('general-channel');
