@@ -42,14 +42,15 @@ client.on('message', (msg) => {
     }
 });
 
-client.on('messageDelete', (deletedMessage) => {
-    console.log(deletedMessage)
+client.on('messageDelete', async (deletedMessage) => {
     if (!deletedMessage.author.bot) {
+        const deleteLog = await deletedMessage.guild.fetchAuditLogs({type: 'MESSAGE_DELETE'}).then(logs => logs.entries.first());
+        const deleter = deleteLog.executor;
         let messageToSend = ' ';
         if (deletedMessage.content) {
             messageToSend = deletedMessage.content;
         }
-        logChannel.send(`The message: \`\`\`${messageToSend}\`\`\`by \`${deletedMessage.author.tag}\` was deleted.`);
+        logChannel.send(`${deleter.username} deleted the message: \`\`\`${messageToSend}\`\`\`by \`${deletedMessage.author.tag}\`.`);
         if (deletedMessage.attachments.size > 0) {
             let attachmentsString;
             for (const attachment of deletedMessage.attachments) {
@@ -62,12 +63,16 @@ client.on('messageDelete', (deletedMessage) => {
     }   
 });
 
+client.on('guildBanAdd', (guild, user) => {
+    logChannel.send(`${user.username} has been banned from the server.`);
+});
+
 client.on('guildMemberRemove', (member) => {
     logChannel.send(`${member.username} has left the server.`);
 });
 
 client.on('guildMemberAdd', (member) => {
     logChannel.send(`${member.username} has joined the server.`);
-})
+});
 
 client.login(config.get('bot-token'));  
