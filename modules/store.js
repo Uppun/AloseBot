@@ -1,6 +1,75 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const Discord = require('discord.js');
+const GRAB_CODES = [
+    'test1',
+    'test2',
+    'test3',
+    'test4',
+    'test5',
+];
+
+function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, currentCode) {
+    return client.setTimeout(() => {
+        const coinEmbed = createCoinEmbedd(channel, coinDropAmount, currentCode);
+        coinActive[channel] = true;
+        client.channels.get(channel).send(coinEmbed).then(message => {
+            coinMessages[channel] = message;
+        });    
+    }, 3600000 )
+}
+
+function createCoinEmbedd(channel, coinDropAmount, currentCode) {
+    const coinDrop = Math.floor(Math.random() * 49 + 1);
+    coinDropAmount[channel] = coinDrop;
+    currentCode[channel] = GRAB_CODES[Math.floor(Math.random() * GRAB_CODES.length)];
+
+    const coinEmbed = new Discord.RichEmbed()
+        .setTitle(':moneybag: :dog: :moneybag:')
+        .setAuthor('Puppy coins!')
+        .setColor('#eb6123')
+        .setDescription(`type **!grab ${currentCode[channel]}** to grab!`);
+    return coinEmbed;
+}
+
+function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
+    const plantEmbed = new Discord.RichEmbed()
+        .setTitle('Alose has dropped a coin purse!')
+        .setDescription(`Alose has dropped a coin purse in the chat! Quickly, pick it up by reacting with :moneybag:!`);
+    client.channels.get(channel).send(plantEmbed).then(message => {
+        message.react('💰');
+        const filter = (reaction, user) => {
+            return (reaction.emoji.name === '💰' && !user.bot);
+        }
+        message.awaitReactions(filter, {time: timerAmount}).then((collected) => {
+            const results = collected.get('💰');
+            if (results) {
+                results.users.forEach(user => {
+                    if (!user.bot) {
+                        let coinUpdateSQL;
+                        if (currencies[user.id]) {
+                            currencies[user.id] = currencies[user.id] + dropAmount;
+                            coinUpdateSQL = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
+                        } else {
+                            currencies[user.id] = dropAmount;
+                            coinUpdateSQL = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                        }
+
+                        this.db.run(coinUpdateSQL, [this.currencies[user.id], user.id], (err) => {
+                            if (err) {
+                                console.error(err.message);
+                            }
+                        });
+                    }
+                });
+                client.channels.get(channel).send(`You've collected all my coins! Good job! You all get ${dropAmount} coins!`);
+            } else {
+                client.channels.get(channel).send(`Mmm... nobody picked any up...`);
+            }
+            message.delete();
+        });
+    }); 
+}
 
 class StoreModule {
     constructor(context) {
@@ -67,7 +136,7 @@ class StoreModule {
                     throw err;
                 }
                 rows.forEach((row) => {
-                    this.currencies[row.user_id] = row.currency;
+                    this.currencies[row.user_id] = parseInt(row.currency, 10);
                 });
             });
             console.log('Currency DB loaded.')
@@ -118,7 +187,7 @@ class StoreModule {
         this.dispatch.hook('!grab', (message) => {
             const currentChannel = message.channel.id;
             const generalChannel = this.config.get('general-channel');
-            if ((/^!grab\s[A-Za-z0-9]+$/).test(message.content) && this.channels.includes(currentChannel)) {
+            if ((/^!grab\s[A-Za-z0-9]+$/).test(message.content) && this.coinChannels.includes(currentChannel)) {
                 const code = message.content.substr('!grab'.length).trim();
                 if (this.coinActive[currentChannel] && code === this.currentCode[currentChannel]) {
                     const grabber = message.author.id;
@@ -151,6 +220,32 @@ class StoreModule {
                 message.delete(1000);
             }
         });
+
+        this.dispatch.hook('!share', (message) => {
+            if ((/^!share\s<@!?(\d+)>\s(\d+)$/).test(message.content)) {
+                const author = message.author.id;
+                const user = message.mentions.users.array()[0];
+                const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
+
+                if (this.currencies[author] > amount) {
+                    this.currencies[user.id] = this.currencies[user.id] ? this.currencies[user.id] + amount : amount;
+                    this.currencies[author] -= amount
+                    this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        }
+                    });
+                    this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[author], author], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        }
+                    });
+                    message.channel.send(`${message.author.username} shared ${amount} coins with ${user.username}!`);
+                } else {
+                    message.channel.send(`You can't share coins you don't have!`);
+                }
+            }
+        }); 
 
         this.dispatch.hook('!mycoins', (message) => {
             const botChannel = this.config.get('bot-channel');
@@ -193,10 +288,10 @@ class StoreModule {
                     const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
                     let giveSql = '';
                     if (this.currencies[id]) {
-                        this.currencies[id] = this.currencies[id] + amount, 10;
+                        this.currencies[id] = this.currencies[id] + amount;
                         giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     } else {
-                        this.currencies[id] = amount, 10;
+                        this.currencies[id] = amount;
                         giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
                     }
 
@@ -394,7 +489,7 @@ class StoreModule {
                             message.channel.send('You can\'t afford this role!');
                         } else {
                             const setRole = message.guild.roles.find(r => r.id === role[0]);
-                            this.currencies[message.author.id] = parseInt(this.currencies[message.author.id], 10) - parseInt(role[1], 10);
+                            this.currencies[message.author.id] = this.currencies[message.author.id] - parseInt(role[1], 10);
                             this.db.run(`
                             UPDATE currency_db 
                             SET currency = ?
@@ -490,20 +585,20 @@ class StoreModule {
                     if (!this.currencies[user]) {
                         message.channel.send('You can\'t play without any coins...');
                     } else {
-                        if ((parseInt(this.currencies[user], 10) - betAmount) < 0) {
+                        if (this.currencies[user] - betAmount < 0) {
                             message.channel.send('You don\'t have that much candy!');   
                         } else {
                             const betEmbed = new Discord.RichEmbed()
-                                .setTitle('::moneybag: Coin Gamble! :moneybag:')
+                                .setTitle(':moneybag: Coin Gamble! :moneybag:')
                                 .setAuthor('The Doghouse');
                             this.currencies[user] -= betAmount;
                             const choices = [0, 1];
                             const result = choices[Math.floor(Math.random() * choices.length)];
                             const winnings = Math.floor(betAmount * (result > 0 ? .5 : 1.5));
-                            this.currency[user] += winnings;
+                            this.currencies[user] += winnings;
                             const resultMessage = result === 1 ? 
-                                `You won ${winnings - betAmount} coins!` : 
-                                `You get back ${betAmount - winnings} coins...`;
+                                `You won ${betAmount - winnings} coins!` : 
+                                `You lost... you get back ${winnings - betAmount} coins...`;
                             betEmbed.setDescription(resultMessage);
                             message.channel.send(betEmbed);
                             this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
