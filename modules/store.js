@@ -420,7 +420,7 @@ class StoreModule {
                 const guild = message.guild;
 
                 for (const [i, [roleId, cost]] of this.shopPages.entries()) {
-                    page += `**${i + 1}) ${guild.roles.get(roleId).name}**:\xa0\xa0\xa0\xa0${cost} :moneybag:`
+                    page += `**${i + 1}) ${guild.roles.get(roleId).name}**:\xa0\xa0\xa0\xa0${cost} :moneybag:`;
                     if ((i + 1) % 2 === 0) {
                         if ((i + 1) % 4 === 0) {
                             pages.push(page);
@@ -477,6 +477,47 @@ class StoreModule {
             }
         });
         //=====================================//
+
+        //============ Alose Games ============//
+
+        this.dispatch.hook('!bet', (message) => {
+            const channel = this.config.get('game-channel');
+            const user = message.author.id;
+
+            if (/^!bet\s(\d+)$/.test(message.content) && message.channel.id === channel) {
+                const betAmount = parseInt(message.content.match(/(\d+)/g), 10);
+                if (betAmount > 0) {
+                    if (!this.currencies[user]) {
+                        message.channel.send('You can\'t play without any coins...');
+                    } else {
+                        if ((parseInt(this.currencies[user], 10) - betAmount) < 0) {
+                            message.channel.send('You don\'t have that much candy!');   
+                        } else {
+                            const betEmbed = new Discord.RichEmbed()
+                                .setTitle('::moneybag: Coin Gamble! :moneybag:')
+                                .setAuthor('The Doghouse');
+                            this.currencies[user] -= betAmount;
+                            const choices = [0, 1];
+                            const result = choices[Math.floor(Math.random() * choices.length)];
+                            const winnings = Math.floor(betAmount * (result > 0 ? .5 : 1.5));
+                            this.currency[user] += winnings;
+                            const resultMessage = result === 1 ? 
+                                `You won ${winnings - betAmount} coins!` : 
+                                `You get back ${betAmount - winnings} coins...`;
+                            betEmbed.setDescription(resultMessage);
+                            message.channel.send(betEmbed);
+                            this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
+                                if (err) {
+                                    console.error(err.message);
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    message.channel.send('You need to at least wager something!');
+                }
+            }
+        });
     }
 }
 
