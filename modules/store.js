@@ -98,21 +98,23 @@ class StoreModule {
         //========== Database Calls ==========//
         this.db.run(`
         CREATE TABLE IF NOT EXISTS shop_items (
+          type TEXT,
           item_id TEXT,
+          info TEXT,
           cost TEXT,
           PRIMARY KEY (item_id)
         )`, (err) => { 
             if (err) {
                 console.error(err.message);
             }
-            const shopSql = `SELECT item_id, cost FROM shop_items ORDER by item_id`;
+            const shopSql = `SELECT type, item_id, info, cost FROM shop_items ORDER by item_id`;
 
             this.db.all(shopSql, [], (err, rows) => {
                 if (err) {
                     throw err;
                 }
                 rows.forEach((row) => {
-                    this.shopPages.push([row.item_id, row.cost]);
+                    this.shopPages.push({type: row.type, item_id: row.item_id, info: row.info, cost: parseInt(row.cost, 10)});
                 });
             });
             console.log('Store loaded.');
@@ -413,45 +415,88 @@ class StoreModule {
         //=========== Store Related ===========//
         this.dispatch.hook('!addShop', (message) => {
             const channel = this.config.get('bot-channel');
-            if (message.channel.id === channel && (/^!addShop\s<@&(\d+)>\s\d+$/).test(message.content)) {
-                const idAndCost = message.content.match(/(\d+)/g);
-                const id = idAndCost[0];
-                const roleCost = parseInt(idAndCost[1], 10);
-                let roleFound = false;
-                const role = message.guild.roles.get(id);
-                if (role) {
-                    for (let [i, [role, cost]] of this.shopPages.entries()) {
-                        if (role === id) {
-                            this.shopPages[i][1] = roleCost;
-                            roleFound = true;
+
+            if (message.channel.id === channel) {
+                if ((/^!addShop\srole\s("[A-Za-z\s]+"|“[A-Za-z\s]+”)\s<@&(\d+)>\s\d+$/).test(message.content)) {
+                    const idAndCost = message.content.match(/(\d+)/g);
+                    const id = idAndCost[0];
+                    const roleCost = parseInt(idAndCost[1], 10);
+                    let roleFound = false;
+                    const role = message.guild.roles.get(id);
+                    if (role) {
+                        for (let [i, {type, item_id, info, cost}] of this.shopPages.entries()) {
+                            if (item_id === id) {
+                                this.shopPages[i].cost = roleCost;
+                                roleFound = true;
+                                this.db.run(`
+                                UPDATE shop_items 
+                                SET cost = ?
+                                WHERE item_id = ? 
+                                `, [roleCost, id], (err) => {
+                                    if (err) {
+                                        console.error(err.message);
+                                    }
+                                });
+                                message.channel.send(`Role updated!`);
+                                break;
+                            }
+                        }
+    
+                        if (!roleFound) {
+                            let roleInfo = message.content.match(/("[a-zA-Z\s]+"|“[a-zA-Z\s]+”)/g);
+                            roleInfo = roleInfo[0].substr(1, roleInfo[0].length - 2);
+                            this.db.run(`
+                            INSERT INTO shop_items (type, item_id, info, cost)
+                            VALUES (?, ?, ?, ?)
+                            `, ['role', id, roleInfo, roleCost], (err) => {
+                            if (err) {
+                                console.error(err.message);
+                            } else {
+                                this.shopPages.push({type: 'role', item_id: id, info: roleInfo, cost: roleCost});
+                                message.channel.send(`Role added!`);
+                            }});          
+                        }
+                    } else {
+                        message.channel.send('Error! Role not found.');
+                    }
+                }
+
+                if ((/^!addShop\sitem\s("[a-zA-Z\s]+"|“[a-zA-Z\s]+”)\s("[a-zA-Z\s]+"|“[a-zA-Z\s]+”)\s\d+$/).test(message.content)) {
+                    const itemElements = message.content.match(/("[A-Za-z\s]+"|“[A-Za-z\s]+”)/g);
+                    const itemName = itemElements[0].substr(1, itemElements[0].length - 1);
+                    const itemDescription = itemElements[1].substr(1, itemElements[1].length - 2);;
+                    const cost = message.content.match(/(\d+)/g)[0];
+                    let itemFound = false;
+                    for (let [i, {type, item_id, info, cost}] of this.shopPages.entries()) {
+                        if (item_id === itemName) {
+                            this.shopPages[i].cost = cost;
+                            itemFound = true;
                             this.db.run(`
                             UPDATE shop_items 
                             SET cost = ?
                             WHERE item_id = ? 
-                            `, [roleCost, id], (err) => {
+                            `, [cost, itemName], (err) => {
                                 if (err) {
                                     console.error(err.message);
                                 }
                             });
-                            message.channel.send(`Role updated!`);
+                            message.channel.send(`Item updated!`);
                             break;
                         }
                     }
 
-                    if (!roleFound) {
+                    if (!itemFound) {
                         this.db.run(`
-                        INSERT INTO shop_items (item_id, cost)
-                        VALUES (?, ?)
-                        `, [id, roleCost], (err) => {
+                        INSERT INTO shop_items (type, item_id, info, cost)
+                        VALUES (?, ?, ?, ?)
+                        `, ['item', itemName, itemDescription, cost], (err) => {
                         if (err) {
                             console.error(err.message);
                         } else {
-                            this.shopPages.push([id, roleCost]);
-                            message.channel.send(`Role added!`);
-                        }});          
+                            this.shopPages.push({type: 'item', item_id: itemName, info: itemDescription, cost});
+                            message.channel.send(`Item added!`);
+                        }});  
                     }
-                } else {
-                    message.channel.send('Error! Role not found.');
                 }
             }
             
@@ -463,7 +508,7 @@ class StoreModule {
                 let itemIndex = parseInt(message.content.substr('!removeShop'.length).trim(), 10);
                 if (this.shopPages.length >= itemIndex && itemIndex > 0) {
                     this.db.run(`
-                    DELETE FROM shop_items WHERE item_id=?`, this.shopPages[itemIndex - 1][0], (err) => {
+                    DELETE FROM shop_items WHERE item_id=?`, this.shopPages[itemIndex - 1].item_id, (err) => {
                       if (err) {
                         console.error(err.message);
                       }
@@ -478,18 +523,41 @@ class StoreModule {
 
         this.dispatch.hook('!buy', (message) => {
             const channel = this.config.get('bot-speak-channel');
+            const logChannel = this.client.channels.get(this.config.get('log-channel'));
             if ((/^!buy\s(\d+)$/).test(message.content) && message.channel.id === channel) {
                 const itemIndex = parseInt(message.content.match(/(\d+)/g), 10);
-                const role = this.shopPages[itemIndex - 1];
-                if (role){
-                    if (message.member.roles.find(r => r.id === role[0])) {
-                        message.channel.send('You already have this role!');
-                    } else {
-                        if (role[1] > parseInt(this.currencies[message.author.id])) {
-                            message.channel.send('You can\'t afford this role!');
+                const purchase = this.shopPages[itemIndex - 1];
+                if (purchase){
+                    if (purchase.type === 'role') {
+                        if (message.member.roles.find(r => r.id === purchase.item_id)) {
+                            message.channel.send('You already have this role!');
                         } else {
-                            const setRole = message.guild.roles.find(r => r.id === role[0]);
-                            this.currencies[message.author.id] = this.currencies[message.author.id] - parseInt(role[1], 10);
+                            if (purchase.cost > parseInt(this.currencies[message.author.id])) {
+                                message.channel.send('You can\'t afford this role!');
+                            } else {
+                                const setRole = message.guild.roles.find(r => r.id === purchase.item_id);
+                                this.currencies[message.author.id] = this.currencies[message.author.id] - purchase.cost;
+                                this.db.run(`
+                                UPDATE currency_db 
+                                SET currency = ?
+                                WHERE user_id = ? 
+                                `, [this.currencies[message.author.id], message.author.id], (err) => {
+                                    if (err) {
+                                        console.error(err.message);
+                                    }
+                                });
+                                message.member.addRole(setRole, 'Bought from store');
+                                message.channel.send('Role purchased!');
+                                logChannel.send(`${message.author.username} purchased the role ${purchase.info} for ${purchase.cost}`);
+                            }
+                        }
+                    }
+
+                    if (purchase.type === 'item') {
+                        if (purchase.cost > parseInt(this.currencies[message.author.id])) {
+                            message.channel.send('You can\'t afford this item!');
+                        } else {
+                            this.currencies[message.author.id] = this.currencies[message.author.id] - purchase.cost;
                             this.db.run(`
                             UPDATE currency_db 
                             SET currency = ?
@@ -499,8 +567,8 @@ class StoreModule {
                                     console.error(err.message);
                                 }
                             });
-                            message.member.addRole(setRole, 'Bought from store');
-                            message.channel.send('Role purchased!');
+                            message.channel.send('Item purchased!');
+                            logChannel.send(`${message.author.username} purchased the item ${purchase.item_id} for ${purchase.cost}`);
                         }
                     }
                 }
@@ -509,13 +577,18 @@ class StoreModule {
 
         this.dispatch.hook('!shop', (message) => {
             const botSpeakChannel = this.config.get('bot-speak-channel');
-            if (message.channel.id === botSpeakChannel) {
+            const modCommandsChannel = this.config.get('bot-channel');
+            if (message.channel.id === botSpeakChannel || message.channel.id === modCommandsChannel) {
                 let pages = [];
                 let page = '';
                 const guild = message.guild;
 
-                for (const [i, [roleId, cost]] of this.shopPages.entries()) {
-                    page += `**${i + 1}) ${guild.roles.get(roleId).name}**:\xa0\xa0\xa0\xa0${cost} :moneybag:`;
+                for (const [i, {type, item_id, info, cost}] of this.shopPages.entries()) {
+                    if (type === 'role') {
+                        page += `**${i + 1}) ${guild.roles.get(item_id).name}**:\xa0\xa0\xa0\xa0${cost} :moneybag:\n${info}\n`;
+                    } else {
+                        page += `**${i + 1}) ${item_id}**:\xa0\xa0\xa0\xa0${cost} :moneybag:\n${info}\n`;
+                    }
                     if ((i + 1) % 2 === 0) {
                         if ((i + 1) % 4 === 0) {
                             pages.push(page);
@@ -524,7 +597,7 @@ class StoreModule {
                             page += `\n\n`;
                         }
                     } else {
-                        const totalSpaces = 22 - cost.length - guild.roles.get(roleId).name.length;
+                        const totalSpaces = 22 - cost.length - guild.roles.get(item_id).name.length;
                         for (let i = 0; i < totalSpaces; i++) {
                             page += `\xa0`;
                         }
