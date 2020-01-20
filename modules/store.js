@@ -174,10 +174,14 @@ class StoreModule {
         //====================================//
         
         //========== Currency Related ==========//
-        this.dispatch.hook('!showcoins', (message) => {
-            const botSpeakChannel = this.config.get('bot-speak-channel');
+        this.dispatch.hook('!coins', (message) => {
+            if (message.content === '!coins') {
+                const author = message.author.id;
+                const reply = this.currencies[author] ? `You have ${this.currencies[author]} coins!` : `You have no coins...`;
+                message.channel.send(reply);
+            }
 
-            if (message.channel.id === botSpeakChannel && (/^!showcoins\s<@!?(\d+)>$/).test(message.content)) {
+            if ((/^!coins\s<@!?(\d+)>$/).test(message.content)) {
                 const userId = message.content.match(/(\d+)/g);
                 const user = message.mentions.members.first().user;
                 const amount = this.currencies[userId];
@@ -289,12 +293,12 @@ class StoreModule {
                     const id = mentionedUser.id;
                     const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
                     let giveSql = '';
-                    if (this.currencies[id]) {
-                        this.currencies[id] = this.currencies[id] + amount;
-                        giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
-                    } else {
+                    if (this.currencies[id] === undefined) {
                         this.currencies[id] = amount;
                         giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                    } else {
+                        this.currencies[id] = this.currencies[id] + amount;
+                        giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     }
 
                     this.db.run(giveSql, [this.currencies[id], id], (err) => {
@@ -367,9 +371,9 @@ class StoreModule {
         });
 
         this.dispatch.hook('!plant', (message) => {
-            const botChannel = this.config.get('bot-channel');
-            const generalChannel = this.config.get('general-channel')
-            if (message.channel.id === botChannel && (/^!plant\s(\d+)\stime\s(\d+)$/).test(message.content)) {
+            const generalChannel = this.config.get('general-channel');
+            const modIds = this.config.get('mod-ids');
+            if (message.member.roles.find(r => modIds.includes(r.id)) && (/^!plant\s(\d+)\stime\s(\d+)$/).test(message.content)) {
                 const numbers = message.content.match(/(\d+)/g);
                 const dropAmount = parseInt(numbers[0], 10);
                 const timerAmount = parseInt(numbers[1], 10) * 60000;
@@ -378,9 +382,8 @@ class StoreModule {
         });
 
         this.dispatch.hook('!coinbomb', (message) => {
-            const botChannel = this.config.get('bot-channel');
             const announceChannel = this.config.get('announce')
-            if (message.channel.id === botChannel && (/^!coinbomb\s(\d+)\stime\s(\d+)$/).test(message.content)) {
+            if (message.member.roles.find(r => modIds.includes(r.id)) && (/^!coinbomb\s(\d+)\stime\s(\d+)$/).test(message.content)) {
                 const numbers = message.content.match(/(\d+)/g);
                 const dropAmount = parseInt(numbers[0], 10);
                 const timerAmount = parseInt(numbers[1], 10) * 60000;
@@ -410,6 +413,83 @@ class StoreModule {
                 }
             }
         });
+
+        this.dispatch.hook('!lb', async (message) => {
+            const channel = this.config.get('bot-speak-channel');
+
+            if (message.channel.id === channel) {
+                const lbArray = Object.entries(this.currencies);
+                lbArray.sort((element1, element2) => {
+                    return parseInt(element2[1], 10) - parseInt(element1[1], 10);
+                });
+
+                const lbPromises = [];
+                for (let i = 0; i < lbArray.length; i++) {
+                    if (lbArray[i][1] <= 0) {
+                        break;
+                    }
+                    lbPromises.push(this.client.fetchUser(lbArray[i][0]));
+                }
+
+                await Promise.all(lbPromises).then(users => {
+                    users.sort((user1, user2) => {
+                        return parseInt(this.currencies[user2.id], 10) - parseInt(this.currencies[user1.id], 10);
+                    });
+
+                    let pages = [];
+                    let page = '';
+                    let userNum = 0;
+                    for (let i = 0; i < users.length; i++) {
+                        if (userNum === 9) {
+                            pages.push(page);
+                            page = '';
+                            userNum = 0;
+                        }
+                        userNum++;
+                        page += `${i + 1}) ${users[i].username} - ${this.currencies[users[i].id]}\n`;
+                    }
+
+                    if (page !== '') {
+                        pages.push(page);
+                    }
+
+                    let currentPage = 0;
+                    const lbEmbed = new Discord.RichEmbed()
+                    .setTitle(':dog: :moneybag: :dog:')
+                    .setAuthor('Currency Leaderboard')
+                    .setColor('#FF7417')
+                    .setFooter(`Page ${currentPage+1} of ${pages.length}`)
+                    .setDescription(pages[currentPage]);
+                    
+                    message.channel.send(lbEmbed).then(msg => {
+                        const reactionMap = new Map([['⏪', -1],['⏩', 1]]);
+
+                        Array.from(reactionMap.keys()).reduce( async (previousPromise, nextReaction) => {
+                            await previousPromise;
+                            return msg.react(nextReaction)
+                        }, Promise.resolve());
+                        
+                        const reactionCollector = new Discord.ReactionCollector(msg, (reaction, user) => {
+                            return reactionMap.has(reaction.emoji.name) && user.id !== this.client.user.id;
+                        }, { time: 600000, });
+
+                        reactionCollector.on('collect', (reaction, collector) => {
+                            let pageChange = currentPage + reactionMap.get(reaction.emoji.name);
+
+                            if ((pageChange > -1) && (pageChange < pages.length)) {
+                                currentPage = pageChange;
+                                lbEmbed.setDescription(pages[currentPage]);
+                                lbEmbed.setFooter(`Page ${currentPage+1} of ${pages.length}`);
+                                msg.edit(lbEmbed);
+                            }
+                            removeReactionUsers(reaction);
+                        })
+                        msg.delete(600000);
+                    });
+                });
+            }
+        });
+
         //======================================//
 
         //=========== Store Related ===========//
@@ -665,7 +745,7 @@ class StoreModule {
                                 .setTitle(':moneybag: Coin Gamble! :moneybag:')
                                 .setAuthor('The Doghouse');
                             this.currencies[user] -= betAmount;
-                            const choices = [0, 1];
+                            const choices = [0, 0, 0, 1, 1];
                             const result = choices[Math.floor(Math.random() * choices.length)];
                             const winnings = Math.floor(betAmount * (result > 0 ? .5 : 1.5));
                             this.currencies[user] += winnings;
