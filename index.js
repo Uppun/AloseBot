@@ -52,9 +52,9 @@ client.on('messageDelete', async (deletedMessage) => {
         }
         logChannel.send(`${deleter.username} deleted the message: \`\`\`${messageToSend}\`\`\`by \`${deletedMessage.author.tag}\`.`);
         if (deletedMessage.attachments.size > 0) {
-            let attachmentsString;
+            let attachmentsString = '';
             for (const attachment of deletedMessage.attachments) {
-                if (attachment.url) {
+                if (attachment[1].url) {
                     attachmentsString += attachment[1].url + '\n';
                 }              
             }
