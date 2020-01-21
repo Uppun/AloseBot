@@ -8,6 +8,7 @@ const GRAB_CODES = [
     'test4',
     'test5',
 ];
+const GUESS_LIMIT = 10;
 
 function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, currentCode) {
     return client.setTimeout(() => {
@@ -88,6 +89,7 @@ class StoreModule {
         this.coinMessages = {};
         this.coinTimers = {};
         this.currentCode = {};
+        this.guessTimers = {};
         this.coinChannels = this.config.get('coin-channels');
         for (const channel of this.coinChannels) {
             this.seenMessages[channel] = 0;
@@ -728,30 +730,38 @@ class StoreModule {
 
         //============ Alose Games ============//
 
-        this.dispatch.hook('!bet', (message) => {
+        this.dispatch.hook('!flip', (message) => {
             const channel = this.config.get('game-channel');
             const user = message.author.id;
 
-            if (/^!bet\s(\d+)$/.test(message.content) && message.channel.id === channel) {
+            if (/^!flip\s(h|t)\s(\d+)$/.test(message.content) && message.channel.id === channel) {
                 const betAmount = parseInt(message.content.match(/(\d+)/g), 10);
+                const guess = message.content.match(/(h|t)/g);
                 if (betAmount > 0) {
                     if (!this.currencies[user]) {
                         message.channel.send('You can\'t play without any coins...');
                     } else {
                         if (this.currencies[user] - betAmount < 0) {
-                            message.channel.send('You don\'t have that much candy!');   
+                            message.channel.send('You don\'t have that many coins!');   
                         } else {
                             const betEmbed = new Discord.RichEmbed()
-                                .setTitle(':moneybag: Coin Gamble! :moneybag:')
+                                .setTitle(':moneybag: Coin Flip! :moneybag:')
                                 .setAuthor('The Doghouse');
                             this.currencies[user] -= betAmount;
                             const choices = [0, 0, 0, 1, 1];
                             const result = choices[Math.floor(Math.random() * choices.length)];
                             const winnings = Math.floor(betAmount * (result > 0 ? .5 : 1.5));
                             this.currencies[user] += winnings;
-                            const resultMessage = result === 1 ? 
-                                `You won ${betAmount - winnings} coins!` : 
-                                `You lost... you get back ${winnings - betAmount} coins...`;
+                            let resultMessage;
+                            if (result === 1) {
+                                resultMessage = guess[0] === 'h' ? 
+                                    `It\'s heads! You won ${betAmount - winnings} coins!` :
+                                    `It\'s tails! You won ${betAmount - winnings} coins!`;  
+                            } else {
+                                resultMessage = guess[0] === 'h' ? 
+                                    `It\'s tails! You lost... you get back ${winnings - betAmount} coins...` :
+                                    `It\'s heads! You lost... you get back ${winnings - betAmount} coins...`;  
+                            }
                             betEmbed.setDescription(resultMessage);
                             message.channel.send(betEmbed);
                             this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
@@ -763,6 +773,108 @@ class StoreModule {
                     }
                 } else {
                     message.channel.send('You need to at least wager something!');
+                }
+            }
+        });
+
+        this.dispatch.hook('!rps', (message) => {
+            const channel = this.config.get('game-channel');
+            const user = message.author.id;
+
+            if (/^!rps\s(rock|paper|scissors)\s(\d+)$/.test(message.content) && message.channel.id === channel) {
+                const betAmount = parseInt(message.content.match(/(\d+)/g), 10);
+                const guess = message.content.match(/(rock|paper|scissors)/g);
+                if (betAmount > 0) {
+                    if (!this.currencies[user]) {
+                        message.channel.send('You can\'t play without any coins...');
+                    } else {
+                        if (this.currencies[user] - betAmount < 0) {
+                            message.channel.send('You don\'t have that many coins!');   
+                        } else {
+                            const betEmbed = new Discord.RichEmbed()
+                                .setTitle(':moneybag: Rock Paper Scissors! :moneybag:')
+                                .setAuthor('The Doghouse');
+                            this.currencies[user] -= betAmount;
+                            const choices = ['rock', 'paper', 'scissors'];
+                            const result = choices[Math.floor(Math.random() * choices.length)];
+                            let resultNum;
+                            if (guess[0] === result) {
+                                resultNum = 1;
+                            } else {
+                                switch (guess[0]) {
+                                    case 'rock': {
+                                        resultNum = result === 'paper' ? .5 : 1.5;
+                                        break;
+                                    }
+
+                                    case 'paper' : {
+                                        resultNum = result === 'scissors' ? .5 : 1.5;
+                                        break;
+                                    }
+
+                                    case 'scissors': {
+                                        resultNum = result === 'rock' ? .5 : 1.5;
+                                        break;
+                                    }
+                                    default: {
+                                        break;
+                                    }
+                                }
+                            }
+                            const winnings = Math.floor(betAmount * resultNum);
+                            this.currencies[user] += winnings;
+                            let resultMessage;
+                            if (winnings > betAmount) {
+                                resultMessage = `It's ${result}! You win ${winnings - betAmount} coins!`;  
+                            } else {
+                                resultMessage = winnings === betAmount ? 
+                                    `It's ${result}! It's a tie! You get your coins back!` :
+                                    `It's ${result}! You lose ${betAmount - winnings} coins...`;
+                            }
+                            betEmbed.setDescription(resultMessage);
+                            message.channel.send(betEmbed);
+                            this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
+                                if (err) {
+                                    console.error(err.message);
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    message.channel.send('You need to at least wager something!');
+                }
+            }
+        });
+
+        this.dispatch.hook('!guess', (message) => {
+            const channel = this.config.get('game-channel');
+            const user = message.author.id;
+
+            if (/^!guess\s(\d+)$/.test(message.content) && message.channel.id === channel) {
+                const guess = parseInt(message.content.match(/(\d+)/g), 10);
+                if (guess > GUESS_LIMIT || guess <= 0) {
+                    message.channel.send(`You need to guess a number between 1 and ${GUESS_LIMIT}!`);
+                } else {
+                    if (this.guessTimers[user] === undefined || this.guessTimers[user] === false) {
+                        this.guessTimers[user] = true;
+                        setTimeout(() => {
+                            this.guessTimers[user] = false;
+                        }, 10800000);
+                        const answer = Math.floor(Math.random() * GUESS_LIMIT + 1);
+                        if (answer === guess) {
+                            this.currencies[user] = this.currencies[user] ? this.currencies[user] + 100 : 100;
+                            this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
+                                if (err) {
+                                    console.error(err.message);
+                                }
+                            });
+                            message.channel.send(`Correct! The answer was ${answer}!`);
+                        } else {
+                            message.channel.send(`Oh... sorry! The correct answer was ${answer}! Try again in three hours!`);
+                        }
+                    } else {
+                        message.channel.send('You can\'t guess yet! You still need to wait longer.');
+                    }
                 }
             }
         });
