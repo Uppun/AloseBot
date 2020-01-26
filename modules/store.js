@@ -1,13 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const Discord = require('discord.js');
-const GRAB_CODES = [
-    'test1',
-    'test2',
-    'test3',
-    'test4',
-    'test5',
-];
+const codes = require('../assets/coins.js');
 const GUESS_LIMIT = 10;
 
 function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, currentCode) {
@@ -23,13 +17,17 @@ function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, cu
 function createCoinEmbedd(channel, coinDropAmount, currentCode) {
     const coinDrop = Math.floor(Math.random() * 49 + 1);
     coinDropAmount[channel] = coinDrop;
-    currentCode[channel] = GRAB_CODES[Math.floor(Math.random() * GRAB_CODES.length)];
+    const keyCodes = Array.from(codes.keys());
+    currentCode[channel] = keyCodes[Math.floor(Math.random() * keyCodes.length)];
+    const image = codes.get(currentCode[channel]);
 
     const coinEmbed = new Discord.RichEmbed()
-        .setTitle(':moneybag: :dog: :moneybag:')
-        .setAuthor('Puppy coins!')
+        .setTitle('**Some PawPoints appeared!**')
+        .attachFile(image)
+        .setImage(`attachment://${image.name}`)
+        .setAuthor('Paw Points!')
         .setColor('#eb6123')
-        .setDescription(`type **!grab ${currentCode[channel]}** to grab!`);
+        .setDescription(`type **!grab [code]** to grab!`);
     return coinEmbed;
 }
 
