@@ -133,8 +133,6 @@ class RoleAssignmentModule {
                         message.channel.send(`You don't have that role!`)
                     }
                 }
-            } else {
-                message.channel.send('That is not a role that I role I can remove from you!');
             }
         });
     }

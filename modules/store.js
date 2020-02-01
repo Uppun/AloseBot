@@ -655,6 +655,28 @@ class StoreModule {
             }
         });
 
+        this.dispatch.hook('!iamnot', (message) => {
+            const botChannel = this.config.get('bot-speak-channel');
+            if (message.channel.id === botChannel) {
+                const roleName = message.content.substr('!iamnot'.length).trim();
+                const role = message.guild.roles.find(role => role.name === roleName);
+                if (role) {
+                    const roleCheck = this.shopPages.filter(entry => entry.item_id === role.id);
+                    if (roleCheck) {
+                        if(message.member.roles.find(role => role.id === roleCheck[0].item_id)) {
+                            message.member.removeRole(role.id).then(member => {
+                                message.channel.send(`${member.displayName} you no longer have the ${role.name} role!`)
+                            });
+                        } else {
+                            message.channel.send(`You don't have that role!`)
+                        }
+                    }
+                } else {
+                    message.channel.send('That role doesn\'t exist! Be careful, it\'s case sensitive!');
+                }
+            }
+        });
+
         this.dispatch.hook('!shop', (message) => {
             const botSpeakChannel = this.config.get('bot-speak-channel');
             const modCommandsChannel = this.config.get('bot-channel');
