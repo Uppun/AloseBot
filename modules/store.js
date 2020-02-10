@@ -88,6 +88,7 @@ class StoreModule {
         this.coinTimers = {};
         this.currentCode = {};
         this.guessTimers = {};
+        this.digTimers = {};
         this.coinChannels = this.config.get('coin-channels');
         for (const channel of this.coinChannels) {
             this.seenMessages[channel] = 0;
@@ -862,6 +863,31 @@ class StoreModule {
                     }
                 } else {
                     message.channel.send('You need to at least wager something!');
+                }
+            }
+        });
+
+        this.dispatch.hook('!dig', (message) => {
+            const channel = this.config.get('game-channel');
+            const user = message.author.id;
+
+            const today = new Date();
+            const todayString = '' + today.getDate() + today.getMonth() + today.getFullYear();
+            if (message.channel.id === channel) {
+                if (!this.digTimers[user] || this.digTimers[user] !== todayString) {
+                    console.log(this.digTimers[user])
+                    console.log(todayString)
+                    this.digTimers[user] = todayString;
+                    const amount = Math.floor(Math.random() * 500 + 1);
+                    this.currencies[user] = this.currencies[user] ? this.currencies[user] + amount : amount;
+                    this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
+                        if (err) {
+                            console.error(err.message);
+                        }
+                    });
+                    message.channel.send(`Alose dug up ${amount} coins for you!`);
+                } else {
+                    message.channel.send('Don\'t be so hard on Alose! She already dug for you once today...');
                 }
             }
         });
