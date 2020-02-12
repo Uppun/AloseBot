@@ -14,6 +14,16 @@ function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, cu
     }, 3600000 )
 }
 
+function removeReactionUsers(reaction, botId) {
+    reaction.fetchUsers().then(users => {
+        for (const key of users.keys()) {
+            if (key !== botId) {
+                reaction.remove(key)
+            }
+        }
+    });
+}
+
 function createCoinEmbedd(channel, coinDropAmount, currentCode) {
     const coinDrop = Math.floor(Math.random() * 49 + 1);
     coinDropAmount[channel] = coinDrop;
@@ -33,8 +43,8 @@ function createCoinEmbedd(channel, coinDropAmount, currentCode) {
 
 function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
     const plantEmbed = new Discord.RichEmbed()
-        .setTitle('Alose has dropped a coin purse!')
-        .setDescription(`Alose has dropped a coin purse in the chat! Quickly, pick it up by reacting with :moneybag:!`);
+        .setTitle('Alose has dropped a PawPoints purse!')
+        .setDescription(`Alose has dropped a PawPoints purse in the chat! Quickly, pick it up by reacting with :moneybag:!`);
     client.channels.get(channel).send(plantEmbed).then(message => {
         message.react('💰');
         const filter = (reaction, user) => {
@@ -61,7 +71,7 @@ function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
                         });
                     }
                 });
-                client.channels.get(channel).send(`You've collected all my coins! Good job! You all get ${dropAmount} coins!`);
+                client.channels.get(channel).send(`You've collected all my PawPoints! Good job! You all get ${dropAmount} PawPoints!`);
             } else {
                 client.channels.get(channel).send(`Mmm... nobody picked any up...`);
             }
@@ -175,18 +185,18 @@ class StoreModule {
         //====================================//
         
         //========== Currency Related ==========//
-        this.dispatch.hook('!coins', (message) => {
-            if (message.content === '!coins') {
+        this.dispatch.hook('!PawPoints', (message) => {
+            if (message.content === '!PawPoints') {
                 const author = message.author.id;
-                const reply = this.currencies[author] ? `You have ${this.currencies[author]} coins!` : `You have no coins...`;
+                const reply = this.currencies[author] ? `You have ${this.currencies[author]} PawPoints!` : `You have no PawPoints...`;
                 message.channel.send(reply);
             }
 
-            if ((/^!coins\s<@!?(\d+)>$/).test(message.content)) {
+            if ((/^!PawPoints\s<@!?(\d+)>$/).test(message.content)) {
                 const userId = message.content.match(/(\d+)/g);
                 const user = message.mentions.members.first().user;
                 const amount = this.currencies[userId];
-                const messageToSend = amount ? `${user.username} has ${amount} coins!` : `${user.username} has no coins!`;
+                const messageToSend = amount ? `${user.username} has ${amount} PawPoints!` : `${user.username} has no PawPoints!`;
                 message.channel.send(messageToSend);
             }
         });
@@ -198,20 +208,20 @@ class StoreModule {
                 const code = message.content.substr('!grab'.length).trim();
                 if (this.coinActive[currentChannel] && code === this.currentCode[currentChannel]) {
                     const grabber = message.author.id;
-                    let coinSql = ``;
+                    let PawPointsql = ``;
                     if (this.currencies[grabber]) {
                         this.currencies[grabber] = this.currencies[grabber] + this.coinDropAmount[currentChannel];
-                        coinSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
+                        PawPointsql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     } else {
                         this.currencies[grabber] = this.coinDropAmount[currentChannel];
-                        coinSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                        PawPointsql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
                     }
 
                     this.coinActive[currentChannel] = false;
                     this.seenMessages[currentChannel] = 0;
                     this.coinMessages[currentChannel].delete(0);
                     this.currentCode[currentChannel] = null;
-                    this.db.run(coinSql, [this.currencies[grabber], grabber], (err) => {
+                    this.db.run(PawPointsql, [this.currencies[grabber], grabber], (err) => {
                         if (err) {
                             console.error(err.message);
                         }
@@ -220,7 +230,7 @@ class StoreModule {
                     if (currentChannel === generalChannel) {
                         this.coinTimers[currentChannel] = coinTimer(this.client, this.coinActive, currentChannel, this.coinMessages, this.coinDropAmount, this.currentCode);
                     }
-                    message.channel.send(`${message.author.username} grabbed ${this.coinDropAmount[currentChannel]} coins!`).then(response => {
+                    message.channel.send(`${message.author.username} grabbed ${this.coinDropAmount[currentChannel]} PawPoints!`).then(response => {
                         response.delete(15000);
                     });
                 }
@@ -247,20 +257,20 @@ class StoreModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`${message.author.username} shared ${amount} coins with ${user.username}!`);
+                    message.channel.send(`${message.author.username} shared ${amount} PawPoints with ${user.username}!`);
                 } else {
-                    message.channel.send(`You can't share coins you don't have!`);
+                    message.channel.send(`You can't share PawPoints you don't have!`);
                 }
             }
         }); 
 
-        this.dispatch.hook('!mycoins', (message) => {
+        this.dispatch.hook('!myPawPoints', (message) => {
             const botChannel = this.config.get('bot-channel');
             const botSpeakChannel = this.config.get('bot-speak-channel');
             const channelId = message.channel.id;
             if (channelId === botChannel || channelId === botSpeakChannel) {
                 const author = message.author.id;
-                const reply = this.currencies[author] ? `You have ${this.currencies[author]} coins!` : `You have no coins...`;
+                const reply = this.currencies[author] ? `You have ${this.currencies[author]} PawPoints!` : `You have no PawPoints...`;
                 message.channel.send(reply);
             }
         });
@@ -280,8 +290,8 @@ class StoreModule {
                 });
 
                 const response = this.coinCounter <= 0 ? 
-                    'Okay... I wont share my coins anymore...' : 
-                    `Okay! I'll share my coins after ${this.coinCounterGeneral} messages!`;
+                    'Okay... I wont share my PawPoints anymore...' : 
+                    `Okay! I'll share my PawPoints after ${this.coinCounterGeneral} messages!`;
                 message.channel.send(response);
             }
         });
@@ -307,7 +317,7 @@ class StoreModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} coins!`);
+                    message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} PawPoints!`);
                 }
                 if ((/!give\s(\d+)$/).test(message.content)) {
                     const amount = parseInt(message.content.match(/(\d+)/g)[0], 10);
@@ -319,7 +329,7 @@ class StoreModule {
                             }
                         });
                     }
-                    message.channel.send(`I\'ve given you all ${amount} coins!`);
+                    message.channel.send(`I\'ve given you all ${amount} PawPoints!`);
                 }
             }
         });
@@ -345,7 +355,7 @@ class StoreModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`Removed coins from ${mentionedUser.username}, they now have ${this.currencies[id]} coins.`);
+                    message.channel.send(`Removed PawPoints from ${mentionedUser.username}, they now have ${this.currencies[id]} PawPoints.`);
                 }
             }
         })
@@ -365,8 +375,8 @@ class StoreModule {
                 });
 
                 const response = this.coinCounter <= 0 ? 
-                    'Okay... I wont share my coins anymore...' : 
-                    `Okay! I'll share my coins after ${this.coinCounterOther} messages!`;
+                    'Okay... I wont share my PawPoints anymore...' : 
+                    `Okay! I'll share my PawPoints after ${this.coinCounterOther} messages!`;
                 message.channel.send(response);
             }
         });
@@ -457,7 +467,7 @@ class StoreModule {
                     let currentPage = 0;
                     const lbEmbed = new Discord.RichEmbed()
                     .setTitle(':dog: :moneybag: :dog:')
-                    .setAuthor('Currency Leaderboard')
+                    .setAuthor('PawPoints Leaderboard')
                     .setColor('#FF7417')
                     .setFooter(`Page ${currentPage+1} of ${pages.length}`)
                     .setDescription(pages[currentPage]);
@@ -483,7 +493,7 @@ class StoreModule {
                                 lbEmbed.setFooter(`Page ${currentPage+1} of ${pages.length}`);
                                 msg.edit(lbEmbed);
                             }
-                            removeReactionUsers(reaction);
+                            removeReactionUsers(reaction, this.client.user.id);
                         })
                         msg.delete(600000);
                     });
@@ -544,8 +554,8 @@ class StoreModule {
 
                 if ((/^!addShop\sitem\s("[a-zA-Z\s]+"|“[a-zA-Z\s]+”)\s("[a-zA-Z\s]+"|“[a-zA-Z\s]+”)\s\d+$/).test(message.content)) {
                     const itemElements = message.content.match(/("[A-Za-z\s]+"|“[A-Za-z\s]+”)/g);
-                    const itemName = itemElements[0].substr(1, itemElements[0].length - 1);
-                    const itemDescription = itemElements[1].substr(1, itemElements[1].length - 2);;
+                    const itemName = itemElements[0].substr(1, itemElements[0].length - 2);
+                    const itemDescription = itemElements[1].substr(1, itemElements[1].length - 2);
                     const cost = message.content.match(/(\d+)/g)[0];
                     let itemFound = false;
                     for (let [i, {type, item_id, info, cost}] of this.shopPages.entries()) {
@@ -700,7 +710,8 @@ class StoreModule {
                             page += `\n\n`;
                         }
                     } else {
-                        const totalSpaces = 22 - cost.length - guild.roles.get(item_id).name.length;
+                        const nameLength = type === 'role' ? guild.roles.get(item_id).name.length : item_id.length;
+                        const totalSpaces = 22 - cost.length - nameLength;
                         for (let i = 0; i < totalSpaces; i++) {
                             page += `\xa0`;
                         }
@@ -741,7 +752,7 @@ class StoreModule {
                             shopEmbed.setFooter(`Page ${currentPage+1} of ${pages.length}`);
                             msg.edit(shopEmbed);
                         }
-                        removeReactionUsers(reaction);
+                        removeReactionUsers(reaction, this.client.user.id);
                     })
                     msg.delete(600000);
                 });
@@ -760,10 +771,10 @@ class StoreModule {
                 const guess = message.content.match(/(h|t)/g);
                 if (betAmount > 0) {
                     if (!this.currencies[user]) {
-                        message.channel.send('You can\'t play without any coins...');
+                        message.channel.send('You can\'t play without any PawPoints...');
                     } else {
                         if (this.currencies[user] - betAmount < 0) {
-                            message.channel.send('You don\'t have that many coins!');   
+                            message.channel.send('You don\'t have that many PawPoints!');   
                         } else {
                             const betEmbed = new Discord.RichEmbed()
                                 .setTitle(':moneybag: Coin Flip! :moneybag:')
@@ -771,17 +782,17 @@ class StoreModule {
                             this.currencies[user] -= betAmount;
                             const choices = [0, 0, 0, 1, 1];
                             const result = choices[Math.floor(Math.random() * choices.length)];
-                            const winnings = Math.floor(betAmount * (result > 0 ? .5 : 1.5));
+                            const winnings = Math.floor(betAmount * (result > 0 ? 0 : 1.5));
                             this.currencies[user] += winnings;
                             let resultMessage;
                             if (result === 1) {
                                 resultMessage = guess[0] === 'h' ? 
-                                    `It\'s heads! You won ${betAmount - winnings} coins!` :
-                                    `It\'s tails! You won ${betAmount - winnings} coins!`;  
+                                    `It\'s heads! You won ${betAmount - winnings} PawPoints!` :
+                                    `It\'s tails! You won ${betAmount - winnings} PawPoints!`;  
                             } else {
                                 resultMessage = guess[0] === 'h' ? 
-                                    `It\'s tails! You lost... you get back ${winnings - betAmount} coins...` :
-                                    `It\'s heads! You lost... you get back ${winnings - betAmount} coins...`;  
+                                    `It\'s tails! You lost... you get back ${winnings - betAmount} PawPoints...` :
+                                    `It\'s heads! You lost... you get back ${winnings - betAmount} PawPoints...`;  
                             }
                             betEmbed.setDescription(resultMessage);
                             message.channel.send(betEmbed);
@@ -807,10 +818,10 @@ class StoreModule {
                 const guess = message.content.match(/(rock|paper|scissors)/g);
                 if (betAmount > 0) {
                     if (!this.currencies[user]) {
-                        message.channel.send('You can\'t play without any coins...');
+                        message.channel.send('You can\'t play without any PawPoints...');
                     } else {
                         if (this.currencies[user] - betAmount < 0) {
-                            message.channel.send('You don\'t have that many coins!');   
+                            message.channel.send('You don\'t have that many PawPoints!');   
                         } else {
                             const betEmbed = new Discord.RichEmbed()
                                 .setTitle(':moneybag: Rock Paper Scissors! :moneybag:')
@@ -824,17 +835,17 @@ class StoreModule {
                             } else {
                                 switch (guess[0]) {
                                     case 'rock': {
-                                        resultNum = result === 'paper' ? .5 : 1.5;
+                                        resultNum = result === 'paper' ? 0 : 1.5;
                                         break;
                                     }
 
                                     case 'paper' : {
-                                        resultNum = result === 'scissors' ? .5 : 1.5;
+                                        resultNum = result === 'scissors' ? 0 : 1.5;
                                         break;
                                     }
 
                                     case 'scissors': {
-                                        resultNum = result === 'rock' ? .5 : 1.5;
+                                        resultNum = result === 'rock' ? 0 : 1.5;
                                         break;
                                     }
                                     default: {
@@ -846,11 +857,11 @@ class StoreModule {
                             this.currencies[user] += winnings;
                             let resultMessage;
                             if (winnings > betAmount) {
-                                resultMessage = `It's ${result}! You win ${winnings - betAmount} coins!`;  
+                                resultMessage = `It's ${result}! You win ${winnings - betAmount} PawPoints!`;  
                             } else {
                                 resultMessage = winnings === betAmount ? 
-                                    `It's ${result}! It's a tie! You get your coins back!` :
-                                    `It's ${result}! You lose ${betAmount - winnings} coins...`;
+                                    `It's ${result}! It's a tie! You get your PawPoints back!` :
+                                    `It's ${result}! You lose ${betAmount - winnings} PawPoints...`;
                             }
                             betEmbed.setDescription(resultMessage);
                             message.channel.send(betEmbed);
@@ -875,8 +886,6 @@ class StoreModule {
             const todayString = '' + today.getDate() + today.getMonth() + today.getFullYear();
             if (message.channel.id === channel) {
                 if (!this.digTimers[user] || this.digTimers[user] !== todayString) {
-                    console.log(this.digTimers[user])
-                    console.log(todayString)
                     this.digTimers[user] = todayString;
                     const amount = Math.floor(Math.random() * 500 + 1);
                     this.currencies[user] = this.currencies[user] ? this.currencies[user] + amount : amount;
@@ -885,7 +894,7 @@ class StoreModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`Alose dug up ${amount} coins for you!`);
+                    message.channel.send(`Alose dug up ${amount} PawPoints for you!`);
                 } else {
                     message.channel.send('Don\'t be so hard on Alose! She already dug for you once today...');
                 }
@@ -908,7 +917,7 @@ class StoreModule {
                         }, 10800000);
                         const answer = Math.floor(Math.random() * GUESS_LIMIT + 1);
                         if (answer === guess) {
-                            this.currencies[user] = this.currencies[user] ? this.currencies[user] + 100 : 100;
+                            this.currencies[user] = this.currencies[user] ? this.currencies[user] + 500 : 500;
                             this.db.run(`UPDATE currency_db SET currency = ? WHERE user_id = ?`, [this.currencies[user], user], (err) => {
                                 if (err) {
                                     console.error(err.message);
