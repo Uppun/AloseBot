@@ -54,7 +54,11 @@ class Dictionary {
         let sentence = '';
         if (!this.dictionaryMap.has(start) || !start.replace(/\s/g, '').length || this.bannedWords.includes(start.toLowerCase())) {
             const words = Array.from(this.dictionaryMap.keys());
-            sentence = words[Math.floor(Math.random() * words.length)];
+            let newStarter = words[Math.floor(Math.random() * words.length)];
+            while (this.bannedWords.includes(newStarter.toLowerCase())) {
+                newStarter = words[Math.floor(Math.random() * words.length)];
+            }
+            sentence = newStarter;
         } else {
             sentence = start;
         }
