@@ -1,3 +1,8 @@
+const Discord = require('discord.js');
+const aloseHeads = new Discord.Attachment('./assets/heads.png', 'heads.png');
+const aloseTails = new Discord.Attachment('./assets/tails.png', 'tails.png');
+const aloseMiddle = new Discord.Attachment('./assets/sideways.png', 'sideways.png');
+
 class EightBallModule {
     constructor(context) {
         this.dispatch = context.dispatch;
@@ -20,11 +25,33 @@ class EightBallModule {
             '🡸 Alose doesn\'t chase the ball, preferring to chase her tail instead.\`\`\`🅾️ Outlook not so good.',
             '🡸 Alose chases after the ball before accidentally swallowing it whole.\`\`\`🅾️ Very doubtful.',
         ];
+        this.botChannel = this.config.get('bot-channel');
+        this.botSpeakChannel = this.config.get('bot-speak-channel');
+
+        this.dispatch.hook('!flip', (message) => {
+            if ((message.channel.id === this.botSpeakChannel || message.channel.id === this.botChannel)) {
+                const result = Math.floor(Math.random() * 101);
+                let image = aloseHeads;
+                let description = `It's heads! That's a yes!`;
+                if (result > 49) {
+                    image = aloseTails;
+                    description = `It's tails! That's no!`;
+                }
+                if (result === 100) {
+                    image = aloseMiddle;
+                    description = `It... landed on it's side...? That's impressive.`;
+                }
+                const coinEmbed = new Discord.RichEmbed()
+                    .setAuthor('Alosé')
+                    .attachFile(image)
+                    .setImage(`attachment://${image.name}`)
+                    .setDescription(description);
+                message.channel.send(coinEmbed);
+            } 
+        });
 
         this.dispatch.hook('!8ball', (message) => {
-            const botChannel = this.config.get('bot-channel');
-            const botSpeakChannel = this.config.get('bot-speak-channel');
-            if ((message.channel.id === botSpeakChannel || message.channel.id === botChannel)) {
+            if ((message.channel.id === this.botSpeakChannel || message.channel.id === this.botChannel)) {
                 let eightBallString =  `\`\`\`🡺 ${message.member.displayName} throws the magic 8ball.\n…\n`
                 eightBallString += this.replies[Math.floor(Math.random() * this.replies.length)];
                 message.channel.send(eightBallString);

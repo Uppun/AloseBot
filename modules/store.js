@@ -762,11 +762,11 @@ class StoreModule {
 
         //============ Alose Games ============//
 
-        this.dispatch.hook('!flip', (message) => {
+        this.dispatch.hook('!flipgamble', (message) => {
             const channel = this.config.get('game-channel');
             const user = message.author.id;
 
-            if (/^!flip\s(h|t)\s(\d+)$/.test(message.content) && message.channel.id === channel) {
+            if (/^!flipgamble\s(h|t)\s(\d+)$/.test(message.content) && message.channel.id === channel) {
                 const betAmount = parseInt(message.content.match(/(\d+)/g), 10);
                 const guess = message.content.match(/(h|t)/g);
                 if (betAmount > 0) {
