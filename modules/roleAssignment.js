@@ -27,7 +27,7 @@ class RoleAssignmentModule {
                     throw err;
                 }
                 rows.forEach((row) => {
-                    this.roles[row.role_name] = row.role_id;
+                    this.roles[row.role_name.toLowerCase()] = row.role_id;
                 });
             });
     
@@ -103,7 +103,7 @@ class RoleAssignmentModule {
         this.dispatch.hook('!iam', (message) => {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
-                const role = message.content.substr('!iam'.length).trim();
+                const role = message.content.substr('!iam'.length).trim().toLowerCase();
                 const roleId = this.roles[role];
                 if (roleId) {
                     if (!message.member.roles.find(role => role.id === roleId)) {
@@ -122,7 +122,7 @@ class RoleAssignmentModule {
         this.dispatch.hook('!iamnot', (message) => {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
-                const role = message.content.substr('!iamnot'.length).trim();
+                const role = message.content.substr('!iamnot'.length).trim().toLowerCase();
                 const roleId = this.roles[role];
                 if (roleId) {
                     if(message.member.roles.find(role => role.id === roleId)) {
