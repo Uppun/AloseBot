@@ -9,7 +9,8 @@ class PickModule {
 
         this.dispatch.hook('!pick', (message) => {
             if ((message.channel.id === this.botSpeakChannel || message.channel.id === this.botChannel) && (/^!pick\s.*\sor\s.*$/).test(message.content)) {
-                const choices = message.content.split((/\sor\s(.+)/));
+                const trimmedMessage = message.content.slice('!pick'.length).trim();
+                const choices = trimmedMessage.split((/\sor\s(.+)/));
                 const result = Math.floor(Math.random() * 2);
                 message.channel.send(choices[result]);
             } 
