@@ -32,6 +32,7 @@ class RoleAssignmentModule {
             });
     
             console.log('roles loaded');
+            console.log(this.roles)
         });
 
         this.dispatch.hook('!asar', (message) => {
@@ -49,7 +50,7 @@ class RoleAssignmentModule {
                         console.error(err.message);
                       }
                     });
-                    this.roles[name] = id;
+                    this.roles[name.toLowerCase()] = id;
 
                     message.channel.send(`${name} added to the list of assignable roles!`);
                 } else {
@@ -70,7 +71,7 @@ class RoleAssignmentModule {
                         console.error(err.message);
                       }
                     });
-                    delete this.roles[name];
+                    delete this.roles[name.toLowerCase()];
                     
                     message.channel.send(`${name} removed from the list of assignable roles!`)
                 } else {
@@ -108,15 +109,15 @@ class RoleAssignmentModule {
                 if (roleId) {
                     if (!message.member.roles.find(role => role.id === roleId)) {
                         message.member.addRole(roleId).then(member => {
-                            message.channel.send(`${member.displayName} you now have the ${role} role!`)
+                            message.channel.send(`${member.displayName} you now have the ${role} role!`);
                         });
                     } else {
-                        message.channel.send(`You already have that role!`)
+                        message.channel.send(`You already have that role!`);
                     }
+                } else {
+                    message.channel.send('That is not a role I can give you!');
                 }
-            } else {
-                message.channel.send('That is not a role that I can give you!');
-            }
+            } 
         });
 
         this.dispatch.hook('!iamnot', (message) => {

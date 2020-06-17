@@ -68,11 +68,35 @@ client.on('guildBanAdd', (guild, user) => {
 });
 
 client.on('guildMemberRemove', (member) => {
-    logChannel.send(`${member.username} has left the server.`);
+    const leaveEmbed = new Discord.RichEmbed()
+        .setTitle('A user has left the server!')
+        .setDescription(`${member.user.username}#${member.user.discriminator}`)
+        .setThumbnail(`https://cdn.discordapp.com/avatars/${member.user.id}/${member.user.avatar}.jpg`)
+    logChannel.send(leaveEmbed);
 });
 
 client.on('guildMemberAdd', (member) => {
-    logChannel.send(`${member.username} has joined the server.`);
+    const generalChat = config.get('general-channel');
+    const generalChannel = client.channels.get(generalChat);
+    generalChannel.send(`Hello <@!${member.id}>, welcome to The Doghouse! :house_with_garden: Please read <#$528514915502260225> and familiarize yourself with the <#$535286698360438784>! :wolf:  You can also visit <#$562770736037494854> and assign yourself some roles~`);
+    const joinEmbed = new Discord.RichEmbed()
+        .setTitle('A user has joined the server!')
+        .setDescription(`${member.user.username}#${member.user.discriminator}`)
+        .setThumbnail(`https://cdn.discordapp.com/avatars/${member.user.id}/${member.user.avatar}.jpg`);
+    logChannel.send(joinEmbed);
+});
+
+client.on('voiceStateUpdate', (oldMember, newMember) => {
+    const currentVoice = newMember.voiceChannelID;
+    const roleId = config.get('voice-role-id');
+    const voiceIDs = config.get('voice-channel-id');
+    if (voiceIDs.includes(currentVoice)) {
+            newMember.addRole(roleId);
+    } else {
+        if (newMember.roles.find(r => r.id === roleId)) {
+            newMember.removeRole(roleId);
+        }
+    }
 });
 
 client.login(config.get('bot-token'));  

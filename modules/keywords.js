@@ -42,6 +42,9 @@ class KeywordModule {
 
             if (channel === message.channel.id) {
                 if ((/^!addword\s(("[^"\r\n]*")|(“[^"\r\n]*”))\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
+                    let content = message.content;
+                    content = content.replace('“', '"');
+                    content = content.replace('”', '"');
                     const splitMessage = message.content.split('"');
                     this.keyWords[splitMessage[1]] = splitMessage[3];
                     this.db.run(`
