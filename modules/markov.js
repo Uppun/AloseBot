@@ -1,6 +1,7 @@
 const dictionary = require('../dictionary');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 const FETCH_LIMIT = 100;
 
 function cleanMessage(message) {
@@ -212,6 +213,20 @@ class MarkovModule {
       if (message.isMemberMentioned(message.client.user) && channels.includes(message.channel.id)) {
         const sentence = sentenceGenerator(message, this.MarkovDictionary);
         message.channel.send(sentence);
+      }
+    });
+
+    this.dispatch.hook('!printwords', (message) => {
+      const channels = this.config.get('bot-channel');
+      if (channels.includes(message.channel.id)) {
+        const markovMap = this.MarkovDictionary.getDictionaryMap();
+        let data = '';
+        for (const word of markovMap.keys()) {
+          data += word + '\n';
+        }
+        message.channel.send('Writing to file...');
+        fs.writeFileSync('markovWords.txt', data);
+        message.channel.send('Done writing to file! Open markovWords.txt to see it!');
       }
     });
 

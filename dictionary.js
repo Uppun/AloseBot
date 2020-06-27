@@ -22,6 +22,10 @@ class Dictionary {
         }
     }
 
+    getDictionaryMap() {
+        return this.dictionaryMap;
+    }
+
     getBannedWords() {
         return this.bannedWords;
     }
