@@ -27,12 +27,11 @@ class RoleAssignmentModule {
                     throw err;
                 }
                 rows.forEach((row) => {
-                    this.roles[row.role_name.toLowerCase()] = row.role_id;
+                    this.roles[row.role_name] = row.role_id;
                 });
             });
     
             console.log('roles loaded');
-            console.log(this.roles)
         });
 
         this.dispatch.hook('!asar', (message) => {
@@ -50,7 +49,7 @@ class RoleAssignmentModule {
                         console.error(err.message);
                       }
                     });
-                    this.roles[name.toLowerCase()] = id;
+                    this.roles[name] = id;
 
                     message.channel.send(`${name} added to the list of assignable roles!`);
                 } else {
@@ -71,7 +70,7 @@ class RoleAssignmentModule {
                         console.error(err.message);
                       }
                     });
-                    delete this.roles[name.toLowerCase()];
+                    delete this.roles[name];
                     
                     message.channel.send(`${name} removed from the list of assignable roles!`)
                 } else {
@@ -105,7 +104,14 @@ class RoleAssignmentModule {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
                 const role = message.content.substr('!iam'.length).trim().toLowerCase();
-                const roleId = this.roles[role];
+                const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
+                let n = rolekeys.length;
+                while (n--) {
+                    let key = roleKeys[n];
+                    lowerCaseRoles[key.toLocaleLowerCase()] = this.roles[key];
+                }
+                
+                const roleId = lowerCaseRoles[role];
                 if (roleId) {
                     if (!message.member.roles.find(role => role.id === roleId)) {
                         message.member.addRole(roleId).then(member => {
@@ -124,7 +130,14 @@ class RoleAssignmentModule {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
                 const role = message.content.substr('!iamnot'.length).trim().toLowerCase();
-                const roleId = this.roles[role];
+                const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
+                let n = rolekeys.length;
+                while (n--) {
+                    let key = roleKeys[n];
+                    lowerCaseRoles[key.toLocaleLowerCase()] = this.roles[key];
+                }
+                
+                const roleId = lowerCaseRoles[role];
                 if (roleId) {
                     if(message.member.roles.find(role => role.id === roleId)) {
                         message.member.removeRole(roleId).then(member => {

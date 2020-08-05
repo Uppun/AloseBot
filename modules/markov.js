@@ -3,6 +3,18 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const FETCH_LIMIT = 100;
+const Discord = require('discord.js');
+
+function removeReactionUsers(reaction, botId) {
+  reaction.fetchUsers().then(users => {
+      for (const key of users.keys()) {
+          if (key !== botId) {
+              reaction.remove(key)
+          }
+      }
+  });
+}
+
 
 function cleanMessage(message) {
   return (message
@@ -265,11 +277,54 @@ class MarkovModule {
       const channels = this.config.get('bot-channel');
       if (channels.includes(message.channel.id)) {
         const bannedWords = this.MarkovDictionary.getBannedWords();
-        let bannedWordsDisplay = 'I am not allowed to say the following words:\n';
-        for (let i = 0; i < bannedWords.length; i++) {
-          bannedWordsDisplay += ` - ${bannedWords[i]}\n`;
+        if (bannedWords.length < 1) {
+          return message.channel.send('I have no banned words!');
         }
-        message.channel.send(bannedWordsDisplay);
+        const pages = [];
+        let page = ``;
+        let wordsNum = 0;
+        for (let i = 0; i < bannedWords.length; i++) {
+            if (wordsNum === 10 ) {
+                pages.push(page);
+                page = ``;
+                wordsNum = 0;
+            }
+            wordsNum++;
+            page += `**${i + 1}**. ${bannedWords[i]}\n`;
+        }
+        if (page !== '') {
+            pages.push(page);
+        }
+        let currentPage = 0;
+        const bannedEmbed = new Discord.RichEmbed()
+            .setAuthor(`Alose`)
+            .setFooter(`Page ${currentPage+1} of ${pages.length}`)
+            .setDescription(pages[currentPage])
+
+        message.channel.send(bannedEmbed).then(msg => {
+            const reactionMap = new Map([['⏪', -1],['⏩', 1]]);
+
+            Array.from(reactionMap.keys()).reduce( async (previousPromise, nextReaction) => {
+                await previousPromise;
+                return msg.react(nextReaction)
+            }, Promise.resolve());
+            
+            const reactionCollector = new Discord.ReactionCollector(msg, (reaction, user) => {
+                return reactionMap.has(reaction.emoji.name) && user.id !== this.client.user.id;
+            }, { time: 600000, });
+
+            reactionCollector.on('collect', (reaction, collector) => {
+                let pageChange = currentPage + reactionMap.get(reaction.emoji.name);
+
+                if ((pageChange > -1) && (pageChange < pages.length)) {
+                    currentPage = pageChange;
+                    bannedEmbed.setDescription(pages[currentPage]);
+                    bannedEmbed.setFooter(`Page ${currentPage+1} of ${pages.length}`);
+                    msg.edit(bannedEmbed);
+                }
+                removeReactionUsers(reaction, this.client.user.id);
+            })
+        });
       }
     });
 
