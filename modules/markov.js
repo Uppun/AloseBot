@@ -228,6 +228,20 @@ class MarkovModule {
       }
     });
 
+    this.dispatch.hook('!printbannedwords', (message) => {
+      const channels = this.config.get('bot-channel');
+      if (channels.includes(message.channel.id)) {
+        const bannedWords = this.MarkovDictionary.getBannedWords();
+        let data = '';
+        for (const word of bannedWords) {
+          data += word + '\n';
+        }
+        message.channel.send('Writing to file...');
+        fs.writeFileSync('bannedWords.txt', data);
+        message.channel.send('Done writing to file! Open bannedWords.txt to see it!')
+      }
+    });
+    
     this.dispatch.hook('!printwords', (message) => {
       const channels = this.config.get('bot-channel');
       if (channels.includes(message.channel.id)) {
