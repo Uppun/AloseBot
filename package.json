@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "big-time": "^2.0.1",
     "discord.js": "^11.4.2",
     "fs": "^0.0.1-security",
     "sqlite3": "^4.2.0"

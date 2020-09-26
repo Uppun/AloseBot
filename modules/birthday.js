@@ -1,20 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-
-function longTimeout(cb, delay, client) {
-    const MAX_DELAY = Math.pow(2, 31)-1;
-
-    if (delay > MAX_DELAY) {
-        let args = arguments;
-        args[1] -= MAX_DELAY;
-
-        return client.setTimeout(() => {
-            longTimeout.apply(undefined, args);
-        }, MAX_DELAY);
-    }
-
-    return client.setTimeout.apply(undefined, arguments);
-}
+const bt = require('big-time');
 
 class BirthdayModule {
     constructor(context) {
@@ -44,8 +30,6 @@ class BirthdayModule {
                 rows.forEach((row) => {
                     this.birthdays[row.user_id] = row.date_text;
                 });
-    
-                console.log('birthdays loaded')
 
                 Object.keys(this.birthdays).forEach((id) => {
                     const date = this.birthdays[id];
@@ -63,12 +47,13 @@ class BirthdayModule {
                         if (birthDate.getTime() < currentDate.getTime()) {
                             birthDate.setFullYear(birthDate.getFullYear() + 1);
                         }
-            
-                        longTimeout(() => {
+
+                        bt.setTimeout(() => {
                             this.client.channels.get(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
-                        }, birthDate.getTime() - currentDate.getTime(), this.client);
+                        }, birthDate.getTime() - currentDate.getTime());
                     }
                 });
+                console.log('birthdays loaded');
             });
         });
       

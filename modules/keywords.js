@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const Discord = require('discord.js');
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
@@ -112,7 +113,7 @@ class KeywordModule {
                 let currentPage = 0;
                 const wordEmbed = new Discord.RichEmbed()
                     .setAuthor(`Alose`)
-                    .setFoot(`Page ${currentPage+1} of ${pages.length}`)
+                    .setFooter(`Page ${currentPage+1} of ${pages.length}`)
                     .setDescription(pages[currentPage]);
                 
                 message.channel.send(wordEmbed).then(msg => {

@@ -1,3 +1,4 @@
+
 const fileTypes = [
     'jpg',
     'jpeg',
@@ -20,7 +21,7 @@ function checkAttachments(attachments) {
     return false;
 }
 
-function makePings(message) {
+function makePings(message, client) {
     if (!message.includes('@')) {
         return message;
     }
@@ -50,29 +51,16 @@ class AnnounceModule {
         this.config = context.config;
         this.client = context.client;
 
-        this.dispatch.hook('!alosay', (message) => {
-            const channel = this.config.get('bot-channel');
-            const generalChannel = this.config.get('general-channel');
-            if (message.channel.id === channel) {
-                let attachments = message.attachments.array();
-                checkAttachments(attachments) ? this.client.channels.get(generalChannel).send(makePings(message.content.slice('!alosay'.length).trim()), 
-                {
-                    file: attachments[0].url,
-                }) :
-                this.client.channels.get(generalChannel).send(makePings(message.content.slice('!alosay'.length).trim()));
-            }
-        });
-
-        this.dispatch.hook('!announce', (message) => {
+        this.dispatch.hook('?announce', (message) => {
             const channel = this.config.get('bot-channel');
             const announceChannel = this.config.get('announce-channel');
             if (message.channel.id === channel) {
                 let attachments = message.attachments.array();
-                checkAttachments(attachments) ? this.client.channels.get(announceChannel).send(makePings(message.content.slice('!announce'.length).trim()), 
+                checkAttachments(attachments) ? this.client.channels.get(announceChannel).send(makePings(message.content.slice('?announce'.length).trim(), this.client), 
                 {
                     file: attachments[0].url,
                 }) :
-                this.client.channels.get(announceChannel).send(makePings(message.content.slice('!announce'.length).trim()));
+                this.client.channels.get(announceChannel).send(makePings(message.content.slice('?announce'.length).trim()));
             }
         });
     }

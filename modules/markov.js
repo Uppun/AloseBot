@@ -16,7 +16,7 @@ function removeReactionUsers(reaction, botId) {
 }
 
 
-function cleanMessage(message) {
+function cleanMessage(message, client) {
   return (message
       // @user, @!user
       .replace(/<@!?(\d+)>/g, (_, mention) => {
@@ -31,7 +31,9 @@ function cleanMessage(message) {
         return '';
       })
       // :emoji:
-      .replace(/<a?:(\w+):(\d+)>/g, (_, mention) => '')
+      .replace(/<a?:(\w+):(\d+)>/g, (_, name, id) => {
+        return client.emojis.find(emoji => emoji.id === id) ? _ : '';
+      })
     );
 }
 
@@ -89,10 +91,10 @@ function pullMessages(channelID, begin, client, db) {
     });
 }
 
-function sentenceGenerator(message, MarkovDictionary) {
+function sentenceGenerator(message, MarkovDictionary, client) {
   let sentence;
   if (message) {
-    const words = cleanMessage(message.content).split(/[\s]+/).slice(1);
+    const words = cleanMessage(message.content, client).split(/[\s]+/).slice(1);
     let markovWord;
     if (words.length > 0) {
       markovWord = words[Math.floor(Math.random() * words.length)];
@@ -170,7 +172,7 @@ class MarkovModule {
               throw err;
             }
             rows.forEach((row) => {
-              const line = cleanMessage(row.message_text);
+              const line = cleanMessage(row.message_text, this.client);
               if (!line.includes('http')) {
                 this.MarkovDictionary.addLine(line);
               }
@@ -212,7 +214,7 @@ class MarkovModule {
             console.error(err.message);
           }
         });
-        const lines = cleanMessage(message.content);
+        const lines = cleanMessage(message.content, this.client);
         if (lines !== '') {
           this.MarkovDictionary.addLine(lines);
         }
@@ -223,7 +225,7 @@ class MarkovModule {
       //Generate a markov sentence
       const channels = this.config.get('reply-channels');
       if (message.isMemberMentioned(message.client.user) && channels.includes(message.channel.id)) {
-        const sentence = sentenceGenerator(message, this.MarkovDictionary);
+        const sentence = sentenceGenerator(message, this.MarkovDictionary, this.client);
         message.channel.send(sentence);
       }
     });
@@ -365,7 +367,7 @@ class MarkovModule {
         this.seenMessages++;
         if (this.seenMessages === this.messageCap && this.messageCap > 0) {
           this.seenMessages = 0;
-          const sentence = sentenceGenerator(null, this.MarkovDictionary);
+          const sentence = sentenceGenerator(null, this.MarkovDictionary, this.client);
           message.channel.send(sentence);
         }
       }
@@ -400,7 +402,7 @@ class MarkovModule {
               } else {
                 admin.send(`${message.author.username} sent the following message, and an automatic reply was sent!"`);
                 admin.send(`\`\`\`\n${message.content}\n\`\`\``);
-                const sentence = sentenceGenerator(message, this.MarkovDictionary);
+                const sentence = sentenceGenerator(message, this.MarkovDictionary, this.client);
                 message.author.send(sentence);
                 admin.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
               }               
@@ -420,7 +422,7 @@ class MarkovModule {
 
                     if (message.content.startsWith('!auto')) {
                       recipient.dmChannel.fetchMessages({limit: 1}).then((message) => {
-                        const sentence = sentenceGenerator(message, this.MarkovDictionary);
+                        const sentence = sentenceGenerator(message, this.MarkovDictionary, this.client);
                         recipient.send(sentence);
                         admin.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);
                       }).catch((reason) => {
