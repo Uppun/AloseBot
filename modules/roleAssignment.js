@@ -131,7 +131,7 @@ class RoleAssignmentModule {
             if (message.channel.id === botChannel) {
                 const role = message.content.substr('!iamnot'.length).trim().toLowerCase();
                 const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
-                let n = rolekeys.length;
+                let n = roleKeys.length;
                 while (n--) {
                     let key = roleKeys[n];
                     lowerCaseRoles[key.toLocaleLowerCase()] = this.roles[key];
