@@ -1,27 +1,9 @@
 const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-const fileTypes = [
-    'jpg',
-    'jpeg',
-    'png',
-    'gif',
-    'mp4',
-    'webm',
-];
-
-function checkAttachments(attachments) {
-    if (attachments.length > 0) {
-        const url = attachments[0].url;
-        for (const fileType of fileTypes) {
-            if (url.indexOf(fileType, url.length - fileType.length) !== -1) {
-                return true
-            }
-        }
-    }
-
-    return false;
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
-
 
 class ImageModule {
     constructor(context) {
@@ -80,6 +62,51 @@ class ImageModule {
                     console.error(err.message);
                   }
                 });
+
+                message.channel.send('I have stored the image!');
+            }
+        });
+
+        this.dispatch.hook('!removepic', (message) => {
+            const channel = this.config.get('bot-channel');
+            if (message.channel.id === channel) {
+       
+                const prompt = message.content.slice('!removepic'.length).trim();
+                if (!prompt) {
+                    message.channel.send('You need to include a prompt!');
+                    return;
+                }
+
+                if (!this.prompts[prompt]) {
+                    message.channel.send('I don\'t have that stored anywhere!');
+                    return;
+                }
+
+                delete this.prompts[prompt]
+
+                this.db.run(`
+                DELETE FROM storedpics WHERE prompt_text=?`, prompt, (err) => {
+                    if (err) {
+                    console.error(err.message);
+                    }
+                });
+                
+                message.channel.send('Stored pic removed!');
+            }
+        });
+
+        this.dispatch.hook(null, (message) => {
+            //Listen for prompts in messages.
+
+            const channels = this.config.get('reply-channels');
+
+            if (channels.includes(message.channel.id) && !message.author.bot) {
+                for (const key of Object.keys(this.prompts)) {
+                    const wordChecker = new RegExp("(?<=\\s|^)" + escapeRegExp(key) + "(?=\\s|$|[?!.,])");
+                    if (wordChecker.test(message.content)) {
+                        message.channel.send(this.prompts[key]);
+                    }
+                }
             }
         });
     }
