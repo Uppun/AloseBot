@@ -95,6 +95,62 @@ class ImageModule {
             }
         });
 
+        this.dispatch.hook('!listpics', (message) => {
+            const channel = this.config.get('bot-channel');
+            if (channel === message.channel.id) {
+                const prompts = Object.keys(this.prompts);
+                if (prompts.length < 1) {
+                    return message.channel.send('I don\'t have any stored pictures!');
+                }
+                const pages = [];
+                let page = ``;
+                let entriesNum = 0;
+                for (let i = 0; i < prompts.length; i++) {
+                    if (entriesNum === 10) {
+                        pages.push(page);
+                        page = ``;
+                        entriesNum = 0
+                    }
+                    entriesNum++;
+                    page += `${prompts[i]}`;
+                }
+                if (page !== ``) {
+                    pages.push(page);
+                }
+
+                let currentPage = 0;
+                const promptEmbed = new Discord.RichEmbed()
+                    .setAuthor(`Alose`)
+                    .setFooter(`Page ${currentPage+1} of ${pages.length}`)
+                    .setDescription(pages[currentPage]);
+                
+                message.channel.send(promptEmbed).then(msg => {
+                    const reactionMap = new Map([['⏪', -1],['⏩', 1]]);
+
+                    Array.from(reactionMap.keys()).reduce( async (previousPromise, nextReaction) => {
+                        await previousPromise;
+                        return msg.react(nextReaction)
+                    }, Promise.resolve());
+                    
+                    const reactionCollector = new Discord.ReactionCollector(msg, (reaction, user) => {
+                        return reactionMap.has(reaction.emoji.name) && user.id !== this.client.user.id;
+                    }, { time: 600000, });
+        
+                    reactionCollector.on('collect', (reaction, collector) => {
+                        let pageChange = currentPage + reactionMap.get(reaction.emoji.name);
+        
+                        if ((pageChange > -1) && (pageChange < pages.length)) {
+                            currentPage = pageChange;
+                            promptEmbed.setDescription(pages[currentPage]);
+                            promptEmbed.setFooter(`Page ${currentPage+1} of ${pages.length}`);
+                            msg.edit(promptEmbed);
+                        }
+                        removeReactionUsers(reaction, this.client.user.id);
+                    })
+                });
+            }
+        });
+
         this.dispatch.hook(null, (message) => {
             //Listen for prompts in messages.
 
