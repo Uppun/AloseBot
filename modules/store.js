@@ -8,17 +8,17 @@ function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, cu
     return client.setTimeout(() => {
         const coinEmbed = createCoinEmbedd(channel, coinDropAmount, currentCode);
         coinActive[channel] = true;
-        client.channels.get(channel).send(coinEmbed).then(message => {
+        client.channels.resolve(channel).send(coinEmbed).then(message => {
             coinMessages[channel] = message;
         });    
     }, 3600000 )
 }
 
 function removeReactionUsers(reaction, botId) {
-    reaction.fetchUsers().then(users => {
+    reaction.users.fetch().then(users => {
         for (const key of users.keys()) {
             if (key !== botId) {
-                reaction.remove(key)
+                reaction.users.remove(key)
             }
         }
     });
@@ -31,7 +31,7 @@ function createCoinEmbedd(channel, coinDropAmount, currentCode) {
     currentCode[channel] = keyCodes[Math.floor(Math.random() * keyCodes.length)];
     const image = codes.get(currentCode[channel]);
 
-    const coinEmbed = new Discord.RichEmbed()
+    const coinEmbed = new Discord.MessageEmbed()
         .setTitle('**Some PawPoints appeared!**')
         .attachFile(image)
         .setImage(`attachment://${image.name}`)
@@ -42,10 +42,10 @@ function createCoinEmbedd(channel, coinDropAmount, currentCode) {
 }
 
 function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
-    const plantEmbed = new Discord.RichEmbed()
+    const plantEmbed = new Discord.MessageEmbed()
         .setTitle('Alose has dropped a PawPoints purse!')
         .setDescription(`Alose has dropped a PawPoints purse in the chat! Quickly, pick it up by reacting with :moneybag:!`);
-    client.channels.get(channel).send(plantEmbed).then(message => {
+    client.channels.resolve(channel).send(plantEmbed).then(message => {
         message.react('💰');
         const filter = (reaction, user) => {
             return (reaction.emoji.name === '💰' && !user.bot);
@@ -71,9 +71,9 @@ function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
                         });
                     }
                 });
-                client.channels.get(channel).send(`You've collected all my PawPoints! Good job! You all get ${dropAmount} PawPoints!`);
+                client.channels.resolve(channel).send(`You've collected all my PawPoints! Good job! You all get ${dropAmount} PawPoints!`);
             } else {
-                client.channels.get(channel).send(`Mmm... nobody picked any up...`);
+                client.channels.resolve(channel).send(`Mmm... nobody picked any up...`);
             }
             message.delete();
         });
@@ -465,7 +465,7 @@ class StoreModule {
                     }
 
                     let currentPage = 0;
-                    const lbEmbed = new Discord.RichEmbed()
+                    const lbEmbed = new Discord.MessageEmbed()
                     .setTitle(':dog: :moneybag: :dog:')
                     .setAuthor('PawPoints Leaderboard')
                     .setColor('#FF7417')
@@ -614,7 +614,7 @@ class StoreModule {
 
         this.dispatch.hook('!buy', (message) => {
             const channel = this.config.get('bot-speak-channel');
-            const logChannel = this.client.channels.get(this.config.get('log-channel'));
+            const logChannel = this.client.channels.resolve(this.config.get('log-channel'));
             if ((/^!buy\s(\d+)$/).test(message.content) && message.channel.id === channel) {
                 const itemIndex = parseInt(message.content.match(/(\d+)/g), 10);
                 const purchase = this.shopPages[itemIndex - 1];
@@ -637,7 +637,7 @@ class StoreModule {
                                         console.error(err.message);
                                     }
                                 });
-                                message.member.addRole(setRole, 'Bought from store');
+                                message.member.roles.add(setRole, 'Bought from store');
                                 message.channel.send('Role purchased!');
                                 logChannel.send(`${message.author.username} purchased the role ${purchase.info} for ${purchase.cost}`);
                             }
@@ -675,7 +675,7 @@ class StoreModule {
                     const roleCheck = this.shopPages.filter(entry => entry.item_id === role.id);
                     if (roleCheck) {
                         if(message.member.roles.find(role => role.id === roleCheck[0].item_id)) {
-                            message.member.removeRole(role.id).then(member => {
+                            message.member.roles.remove(role.id).then(member => {
                                 message.channel.send(`${member.displayName} you no longer have the ${role.name} role!`)
                             });
                         } else {
@@ -724,7 +724,7 @@ class StoreModule {
 
                 let currentPage = 0;
 
-                const shopEmbed = new Discord.RichEmbed()
+                const shopEmbed = new Discord.MessageEmbed()
                     .setTitle(':dog: :moneybag: :dog:')
                     .setAuthor('Alose\'s shop!')
                     .setColor('#FF7417')
@@ -776,7 +776,7 @@ class StoreModule {
                         if (this.currencies[user] - betAmount < 0) {
                             message.channel.send('You don\'t have that many PawPoints!');   
                         } else {
-                            const betEmbed = new Discord.RichEmbed()
+                            const betEmbed = new Discord.MessageEmbed()
                                 .setTitle(':moneybag: Coin Flip! :moneybag:')
                                 .setAuthor('The Doghouse');
                             this.currencies[user] -= betAmount;
@@ -823,7 +823,7 @@ class StoreModule {
                         if (this.currencies[user] - betAmount < 0) {
                             message.channel.send('You don\'t have that many PawPoints!');   
                         } else {
-                            const betEmbed = new Discord.RichEmbed()
+                            const betEmbed = new Discord.MessageEmbed()
                                 .setTitle(':moneybag: Rock Paper Scissors! :moneybag:')
                                 .setAuthor('The Doghouse');
                             this.currencies[user] -= betAmount;

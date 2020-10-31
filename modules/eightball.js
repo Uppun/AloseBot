@@ -1,7 +1,7 @@
 const Discord = require('discord.js');
-const aloseHeads = new Discord.Attachment('./assets/heads.png', 'heads.png');
-const aloseTails = new Discord.Attachment('./assets/tails.png', 'tails.png');
-const aloseMiddle = new Discord.Attachment('./assets/sideways.png', 'sideways.png');
+const aloseHeads = new Discord.MessageAttachment('./assets/heads.png', 'heads.png');
+const aloseTails = new Discord.MessageAttachment('./assets/tails.png', 'tails.png');
+const aloseMiddle = new Discord.MessageAttachment('./assets/sideways.png', 'sideways.png');
 
 class EightBallModule {
     constructor(context) {
@@ -41,7 +41,7 @@ class EightBallModule {
                     image = aloseMiddle;
                     description = `It... landed on it's side...? That's impressive.`;
                 }
-                const coinEmbed = new Discord.RichEmbed()
+                const coinEmbed = new Discord.MessageEmbed()
                     .setAuthor('Alosé')
                     .attachFile(image)
                     .setImage(`attachment://${image.name}`)

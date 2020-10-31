@@ -51,16 +51,16 @@ class AnnounceModule {
         this.config = context.config;
         this.client = context.client;
 
-        this.dispatch.hook('?announce', (message) => {
+        this.dispatch.hook('!announce', (message) => {
             const channel = this.config.get('bot-channel');
             const announceChannel = this.config.get('announce-channel');
             if (message.channel.id === channel) {
                 let attachments = message.attachments.array();
-                checkAttachments(attachments) ? this.client.channels.get(announceChannel).send(makePings(message.content.slice('?announce'.length).trim(), this.client), 
+                checkAttachments(attachments) ? this.client.channels.resolve(announceChannel).send(makePings(message.content.slice('!announce'.length).trim(), this.client), 
                 {
                     file: attachments[0].url,
                 }) :
-                this.client.channels.get(announceChannel).send(makePings(message.content.slice('?announce'.length).trim()));
+                this.client.channels.resolve(announceChannel).send(makePings(message.content.slice('!announce'.length).trim()));
             }
         });
     }

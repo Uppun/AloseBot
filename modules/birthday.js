@@ -49,7 +49,7 @@ class BirthdayModule {
                         }
 
                         bt.setTimeout(() => {
-                            this.client.channels.get(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
+                            this.client.channels.resolve(config.get('general-channel')).send(`It's <@${id}> 's birthday!`);
                         }, birthDate.getTime() - currentDate.getTime());
                     }
                 });
@@ -73,8 +73,8 @@ class BirthdayModule {
                         console.error(err.message);
                       }
                     });
-                    this.client.channels.get(channel).send('> Alose will remember this date.');
-                    this.client.channels.get(botChannel).send(`<@${message.author.id}> set their birthday to ${splitMessage[1]}!`);
+                    this.client.channels.resolve(channel).send('> Alose will remember this date.');
+                    this.client.channels.resolve(botChannel).send(`<@${message.author.id}> set their birthday to ${splitMessage[1]}!`);
                 }
             }
         });

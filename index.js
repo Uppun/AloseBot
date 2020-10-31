@@ -25,7 +25,7 @@ client.once('ready', async () => {
         const Module = require('./modules/' + moduleName);
         const testModule = new Module(context);
     }
-    logChannel = client.channels.get(logChannelId);
+    logChannel = client.channels.resolve(logChannelId);
 });
 
 client.on('message', (msg) => {
@@ -68,7 +68,7 @@ client.on('guildBanAdd', (guild, user) => {
 });
 
 client.on('guildMemberRemove', (member) => {
-    const leaveEmbed = new Discord.RichEmbed()
+    const leaveEmbed = new Discord.MessageEmbed()
         .setTitle('A user has left the server!')
         .setDescription(`${member.user.username}#${member.user.discriminator}`)
         .setThumbnail(`https://cdn.discordapp.com/avatars/${member.user.id}/${member.user.avatar}.jpg`)
@@ -77,24 +77,23 @@ client.on('guildMemberRemove', (member) => {
 
 client.on('guildMemberAdd', (member) => {
     const generalChat = config.get('general-channel');
-    const generalChannel = client.channels.get(generalChat);
+    const generalChannel = client.channels.resolve(generalChat);
     generalChannel.send(`Hello <@!${member.id}>, welcome to The Doghouse! :house_with_garden: Please read <#$528514915502260225> and familiarize yourself with the <#$535286698360438784>! :wolf:  You can also visit <#$562770736037494854> and assign yourself some roles~`);
-    const joinEmbed = new Discord.RichEmbed()
+    const joinEmbed = new Discord.MessageEmbed()
         .setTitle('A user has joined the server!')
         .setDescription(`${member.user.username}#${member.user.discriminator}`)
         .setThumbnail(`https://cdn.discordapp.com/avatars/${member.user.id}/${member.user.avatar}.jpg`);
     logChannel.send(joinEmbed);
 });
 
-client.on('voiceStateUpdate', (oldMember, newMember) => {
-    const currentVoice = newMember.voiceChannelID;
+client.on('voiceStateUpdate', (oldState, newState) => {
     const roleId = config.get('voice-role-id');
-    const voiceIDs = config.get('voice-channel-id');
-    if (voiceIDs.includes(currentVoice)) {
-            newMember.addRole(roleId);
+    const newChannel = newState.channelID;
+    if (newChannel !== null) {
+        newState.member.roles.add(roleId);
     } else {
-        if (newMember.roles.find(r => r.id === roleId)) {
-            newMember.removeRole(roleId);
+        if (newState.member.roles.cache.find(r => r.id === roleId)) {
+            newState.member.roles.remove(roleId);
         }
     }
 });

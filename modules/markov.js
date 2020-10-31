@@ -6,10 +6,10 @@ const FETCH_LIMIT = 100;
 const Discord = require('discord.js');
 
 function removeReactionUsers(reaction, botId) {
-  reaction.fetchUsers().then(users => {
+  reaction.users.fetch().then(users => {
       for (const key of users.keys()) {
           if (key !== botId) {
-              reaction.remove(key)
+              reaction.users.remove(key)
           }
       }
   });
@@ -32,21 +32,21 @@ function cleanMessage(message, client) {
       })
       // :emoji:
       .replace(/<a?:(\w+):(\d+)>/g, (_, name, id) => {
-        return client.emojis.find(emoji => emoji.id === id) ? _ : '';
+        return client.emojis.resolve(emoji => emoji.id === id) ? _ : '';
       })
     );
 }
 
 function timeAMessage(MarkovDictionary, client, channel, messageTimer) {
   return setTimeout(() => {
-      client.channels.get(channel).send(MarkovDictionary.createMarkovSentence());
+      client.channels.resolve(channel).send(MarkovDictionary.createMarkovSentence());
       this.timedMessage = timeAMessage(MarkovDictionary, client, channel, messageTimer);
   }, messageTimer )
 }
 
 
 function pullMessages(channelID, begin, client, db) {
-  const channel = client.channels.get(channelID);
+  const channel = client.channels.resolve(channelID);
   if (channel == null) {
     throw new Error(`bad channel ID: ${channelID}`);
   }
@@ -54,7 +54,7 @@ function pullMessages(channelID, begin, client, db) {
   const debugName = `#${channel.name} (${channel.id})`;
   console.log(`* pullMessages(): ${debugName}, starting ${begin}`)
 
-  return channel.fetchMessages({ limit: FETCH_LIMIT, after: begin })
+  return channel.messages.fetch({ limit: FETCH_LIMIT, after: begin })
     .then(messages => {
       if (messages.size === 0) {
         console.log(`done for ${debugName}`);
@@ -66,7 +66,7 @@ function pullMessages(channelID, begin, client, db) {
           !message.author.bot &&
           message.embeds.length === 0 &&
           !message.content.includes('http') &&
-          !message.isMentioned(client.user)
+          !message.mentions.has(client.user)
       );
 
       filteredMessages.forEach(message => {
@@ -224,7 +224,7 @@ class MarkovModule {
     this.dispatch.hook(null, (message) => {
       //Generate a markov sentence
       const channels = this.config.get('reply-channels');
-      if (message.isMemberMentioned(message.client.user) && channels.includes(message.channel.id)) {
+      if (message.mentions.has(message.client.user) && channels.includes(message.channel.id)) {
         const sentence = sentenceGenerator(message, this.MarkovDictionary, this.client);
         message.channel.send(sentence);
       }
@@ -312,7 +312,7 @@ class MarkovModule {
             pages.push(page);
         }
         let currentPage = 0;
-        const bannedEmbed = new Discord.RichEmbed()
+        const bannedEmbed = new Discord.MessageEmbed()
             .setAuthor(`Alose`)
             .setFooter(`Page ${currentPage+1} of ${pages.length}`)
             .setDescription(pages[currentPage])
@@ -349,13 +349,13 @@ class MarkovModule {
       if (message.channel.id === channel) {
         const split = message.content.split(' ');
         let newCap = parseInt(split[1]);
-        if (isNaN(newCap)) { client.channels.get(message.channel.id).send('That is not a number!'); }
+        if (isNaN(newCap)) { client.channels.resolve(message.channel.id).send('That is not a number!'); }
         else {
           this.seenMessages = 0;
           this.messageCap = newCap;
           this.messageCap > 0 ?
-            this.client.channels.get(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
-            this.client.channels.get(message.channel.id).send(`Message interval disabled.`);
+            this.client.channels.resolve(message.channel.id).send(`Message interval to ${this.messageCap} messages.`) :
+            this.client.channels.resolve(message.channel.id).send(`Message interval disabled.`);
           this.config.set('message-cap', newCap);
         }
       }

@@ -7,7 +7,7 @@ class RoleAssignmentModule {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
-        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/LulenaDB.db'));
         this.roles = {};
 
         this.db.run(`
@@ -34,10 +34,10 @@ class RoleAssignmentModule {
             console.log('roles loaded');
         });
 
-        this.dispatch.hook('!asar', (message) => {
+        this.dispatch.hook('?asar', (message) => {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
-                const name = message.content.substr('!asar'.length).trim();
+                const name = message.content.substr('?asar'.length).trim();
                 const role = message.guild.roles.find(role => role.name === name);
                 if (role) {
                     const id = role.id;
@@ -58,10 +58,10 @@ class RoleAssignmentModule {
             }
         });
 
-        this.dispatch.hook('!rsar', (message) => {
+        this.dispatch.hook('?rsar', (message) => {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
-                const name = message.content.substr('!rsar'.length).trim();
+                const name = message.content.substr('?rsar'.length).trim();
                 const role = message.guild.roles.find(role => role.name === name);
                 if (role) {
                     this.db.run(`
@@ -79,7 +79,7 @@ class RoleAssignmentModule {
             }
         });
 
-        this.dispatch.hook('!lsar', (message) => {
+        this.dispatch.hook('?lsar', (message) => {
             const botChannel = this.config.get('bot-speak-channel');
             const modChannel = this.config.get('bot-channel');
             if ((message.channel.id === botChannel) || (message.channel.id === modChannel)) {
@@ -92,7 +92,7 @@ class RoleAssignmentModule {
                     }
                 }
 
-                const rolesEmbed = new Discord.RichEmbed()
+                const rolesEmbed = new Discord.MessageEmbed()
                     .setColor('#89cff0')
                     .setTitle(`There are ${roles.length} self-assignable roles.`)
                     .setDescription(roleString);
@@ -100,10 +100,10 @@ class RoleAssignmentModule {
             }
         });
 
-        this.dispatch.hook('!iam', (message) => {
+        this.dispatch.hook('?iam', (message) => {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
-                const role = message.content.substr('!iam'.length).trim().toLowerCase();
+                const role = message.content.substr('?iam'.length).trim().toLowerCase();
                 const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
                 let n = roleKeys.length;
                 while (n--) {
@@ -114,7 +114,7 @@ class RoleAssignmentModule {
                 const roleId = lowerCaseRoles[role];
                 if (roleId) {
                     if (!message.member.roles.find(role => role.id === roleId)) {
-                        message.member.addRole(roleId).then(member => {
+                        message.member.roles.add(roleId).then(member => {
                             message.channel.send(`${member.displayName} you now have the ${role} role!`);
                         });
                     } else {
@@ -126,10 +126,10 @@ class RoleAssignmentModule {
             } 
         });
 
-        this.dispatch.hook('!iamnot', (message) => {
+        this.dispatch.hook('?iamnot', (message) => {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
-                const role = message.content.substr('!iamnot'.length).trim().toLowerCase();
+                const role = message.content.substr('?iamnot'.length).trim().toLowerCase();
                 const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
                 let n = roleKeys.length;
                 while (n--) {
@@ -140,7 +140,7 @@ class RoleAssignmentModule {
                 const roleId = lowerCaseRoles[role];
                 if (roleId) {
                     if(message.member.roles.find(role => role.id === roleId)) {
-                        message.member.removeRole(roleId).then(member => {
+                        message.member.roles.remove(roleId).then(member => {
                             message.channel.send(`${member.displayName} you no longer have the ${role} role!`)
                         });
                     } else {

@@ -5,13 +5,23 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
 
+function removeReactionUsers(reaction, botId) {
+    reaction.users.fetch().then(users => {
+        for (const key of users.keys()) {
+            if (key !== botId) {
+                reaction.users.remove(key)
+            }
+        }
+    });
+}
+
 class ImageModule {
     constructor(context) {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
         this.prompts = {};
-        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/LulenaDB.db'));
 
         this.db.run(`
         CREATE TABLE IF NOT EXISTS storedpics (
@@ -37,7 +47,7 @@ class ImageModule {
         console.log('Stored pics loaded!');
     });
 
-        this.dispatch.hook('!storepic', (message) => {
+        this.dispatch.hook('?storepic', (message) => {
             const channel = this.config.get('bot-channel');
             if (message.channel.id === channel) {
                 let attachments = message.attachments.array();
@@ -46,7 +56,7 @@ class ImageModule {
                     return;
                 }
                 
-                const prompt = message.content.slice('!storepic'.length).trim();
+                const prompt = message.content.slice('?storepic'.length).trim();
                 if (!prompt) {
                     message.channel.send('You need to include a prompt!');
                     return;
@@ -67,11 +77,11 @@ class ImageModule {
             }
         });
 
-        this.dispatch.hook('!removepic', (message) => {
+        this.dispatch.hook('?removepic', (message) => {
             const channel = this.config.get('bot-channel');
             if (message.channel.id === channel) {
        
-                const prompt = message.content.slice('!removepic'.length).trim();
+                const prompt = message.content.slice('?removepic'.length).trim();
                 if (!prompt) {
                     message.channel.send('You need to include a prompt!');
                     return;
@@ -95,7 +105,7 @@ class ImageModule {
             }
         });
 
-        this.dispatch.hook('!listpics', (message) => {
+        this.dispatch.hook('?listpics', (message) => {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const prompts = Object.keys(this.prompts);
@@ -119,8 +129,8 @@ class ImageModule {
                 }
 
                 let currentPage = 0;
-                const promptEmbed = new Discord.RichEmbed()
-                    .setAuthor(`Alose`)
+                const promptEmbed = new Discord.MessageEmbed()
+                    .setAuthor(`Lulena`)
                     .setFooter(`Page ${currentPage+1} of ${pages.length}`)
                     .setDescription(pages[currentPage]);
                 

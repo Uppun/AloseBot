@@ -6,11 +6,22 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
 
+function removeReactionUsers(reaction, botId) {
+    reaction.users.fetch().then(users => {
+        for (const key of users.keys()) {
+            if (key !== botId) {
+                reaction.users.remove(key)
+            }
+        }
+    });
+}
+
 class KeywordModule {
     constructor(context) {
         this.dispatch = context.dispatch;
         this.config = context.config;
-        this.db = new sqlite3.Database(path.join(__dirname, '../db/AloseDB.db'));
+        this.client = context.client;
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/LulenaDB.db'));
         this.keyWords = {};
 
         this.db.run(`
@@ -38,11 +49,11 @@ class KeywordModule {
         });
 
 
-        this.dispatch.hook('!addword', (message) => {
+        this.dispatch.hook('?addword', (message) => {
             const channel = this.config.get('bot-channel');
 
             if (channel === message.channel.id) {
-                if ((/^!addword\s(("[^"\r\n]*")|(“[^"\r\n]*”))\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
+                if ((/^\?addword\s(("[^"\r\n]*")|(“[^"\r\n]*”))\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
                     let content = message.content;
                     content = content.replace('“', '"');
                     content = content.replace('”', '"');
@@ -58,16 +69,16 @@ class KeywordModule {
                     });
                     message.channel.send('Word added!');
                 } else {
-                    message.channel.send('Improper format! To use this command the format is `!addword "call" "response"`.');
+                    message.channel.send('Improper format! To use this command the format is `?addword "call" "response"`.');
                 }
             }
         });
         
-        this.dispatch.hook('!removeword', (message) => {
+        this.dispatch.hook('?removeword', (message) => {
             const channel = this.config.get('bot-channel');
 
             if (channel === message.channel.id) {
-                if ((/^!removeword\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
+                if ((/^\?removeword\s(("[^"\r\n]*")|(“[^"\r\n]*”))$/).test(message.content)) {
                     const splitMessage = message.content.split('"');
                     if (this.keyWords[splitMessage[1]]) {
                         delete this.keyWords[splitMessage[1]];
@@ -82,12 +93,12 @@ class KeywordModule {
                         message.channel.send('Word not found!');
                     }
                 } else {
-                    message.channel.send('Improper format! To use this command the format is `!removeword "word"`.');
+                    message.channel.send('Improper format! To use this command the format is `?removeword "word"`.');
                 }
             }
         });
 
-        this.dispatch.hook('!wordlist', (message) => {
+        this.dispatch.hook('?wordlist', (message) => {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const wordPairs = Object.entries(this.keyWords);
@@ -104,15 +115,15 @@ class KeywordModule {
                         entriesNum = 0
                     }
                     entriesNum++;
-                    page += `${wordPairs[i][0]} => ${wordPairs[i][1]}`;
+                    page += `${wordPairs[i][0]} => ${wordPairs[i][1]}\n`;
                 }
                 if (page !== ``) {
                     pages.push(page);
                 }
 
                 let currentPage = 0;
-                const wordEmbed = new Discord.RichEmbed()
-                    .setAuthor(`Alose`)
+                const wordEmbed = new Discord.MessageEmbed()
+                    .setAuthor(`Lulena`)
                     .setFooter(`Page ${currentPage+1} of ${pages.length}`)
                     .setDescription(pages[currentPage]);
                 

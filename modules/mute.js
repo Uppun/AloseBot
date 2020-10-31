@@ -23,7 +23,7 @@ class MuteModule {
                 }
 
                 if (!muted.roles.find(r => muteId === r.id)) {
-                    muted.addRole(muteId).then(member => {
+                    muted.roles.add(muteId).then(member => {
                         message.channel.send(`I\'ve muted that user for ${muteTime} minutes!`);
                         member.send(`Hello, I'm here to inform you that you've been muted in the Doghouse server for ${muteTime} minutes. Take this time to reflect and relax, and we'll see you soon.`);
                     });
@@ -31,7 +31,7 @@ class MuteModule {
 
                 this.mutedUsers[muteId] = setTimeout(() => {
                     if (muted) {
-                        muted.removeRole(muteId);
+                        muted.roles.remove(muteId);
                         muted.send('Hello again, here to let you know that the mute has expired now. Welcome back! :purple_heart:');
                     }
                 }, parseInt(muteTime, 10) * 60000);
@@ -55,7 +55,7 @@ class MuteModule {
                     return message.channel.send('That user is not currently muted.');
                 }
 
-                unMuted.removeRole(muteId).then(member => {
+                unMuted.roles.remove(muteId).then(member => {
                     message.channel.send(`I\'ve un-muted that user!`);
                     member.send(`Hello again, here to let you know that the mute has been manually removed. Welcome back! :purple_heart:`);
                 });
