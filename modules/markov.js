@@ -394,7 +394,7 @@ class MarkovModule {
     this.dispatch.hook(null, (message) => {
       if (message.channel.type === 'dm' && !message.author.bot) {
         const adminId = this.config.get('admin-id');
-        message.client.fetchUser(adminId).then((admin) => {
+        message.client.users.fetch(adminId).then((admin) => {
           if (message.author.id !== adminId) {
               if (!this.willAuto) {
                 admin.send(`${message.author.username} sent the following message, reply with !reply "${message.author.id}" and then your message in quotes **or** !auto "${message.author.id}"`);
@@ -409,7 +409,7 @@ class MarkovModule {
           } else {
             const splitWords = message.content.split('"');
             if (splitWords[1]) {
-                message.client.fetchUser(splitWords[1]).then((recipient) => {
+                message.client.users.fetch(splitWords[1]).then((recipient) => {
                   if (recipient) {
                     if (message.content.startsWith('!reply')) {
                       let attachments = message.attachments.array();
@@ -421,7 +421,7 @@ class MarkovModule {
                     }
 
                     if (message.content.startsWith('!auto')) {
-                      recipient.dmChannel.fetchMessages({limit: 1}).then((message) => {
+                      recipient.dmChannel.messages.fetch({limit: 1}).then((message) => {
                         const sentence = sentenceGenerator(message, this.MarkovDictionary, this.client);
                         recipient.send(sentence);
                         admin.send(`Alose said \n \`\`\`\n${sentence}\n\`\`\``);

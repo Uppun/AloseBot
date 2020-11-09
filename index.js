@@ -44,13 +44,12 @@ client.on('message', (msg) => {
 
 client.on('messageDelete', async (deletedMessage) => {
     if (!deletedMessage.author.bot) {
-        const deleteLog = await deletedMessage.guild.fetchAuditLogs({type: 'MESSAGE_DELETE'}).then(logs => logs.entries.first());
-        const deleter = deleteLog.executor;
+        const channelName = deletedMessage.channel.name;
         let messageToSend = ' ';
         if (deletedMessage.content) {
             messageToSend = deletedMessage.content;
         }
-        logChannel.send(`${deleter.username} deleted the message: \`\`\`${messageToSend}\`\`\`by \`${deletedMessage.author.tag}\`.`);
+        logChannel.send(`A message has been deleted: \`\`\`${messageToSend}\`\`\`by \`${deletedMessage.author.tag} in ${channelName}\`.`);
         if (deletedMessage.attachments.size > 0) {
             let attachmentsString = '';
             for (const attachment of deletedMessage.attachments) {
@@ -68,6 +67,7 @@ client.on('guildBanAdd', (guild, user) => {
 });
 
 client.on('guildMemberRemove', (member) => {
+    console.log('kicked person');
     const leaveEmbed = new Discord.MessageEmbed()
         .setTitle('A user has left the server!')
         .setDescription(`${member.user.username}#${member.user.discriminator}`)
@@ -76,9 +76,10 @@ client.on('guildMemberRemove', (member) => {
 });
 
 client.on('guildMemberAdd', (member) => {
+    console.log('person joined')
     const generalChat = config.get('general-channel');
-    const generalChannel = client.channels.resolve(generalChat);
-    generalChannel.send(`Hello <@!${member.id}>, welcome to The Doghouse! :house_with_garden: Please read <#$528514915502260225> and familiarize yourself with the <#$535286698360438784>! :wolf:  You can also visit <#$562770736037494854> and assign yourself some roles~`);
+    const generalChannel = client.channels.cache.get(generalChat);
+    generalChannel.send(`Hello <@!${member.id}>, welcome to The Doghouse! :house_with_garden: Please read <#528514915502260225> and familiarize yourself with the <#535286698360438784>! :wolf:  You can also visit <#562770736037494854> and assign yourself some roles~`);
     const joinEmbed = new Discord.MessageEmbed()
         .setTitle('A user has joined the server!')
         .setDescription(`${member.user.username}#${member.user.discriminator}`)

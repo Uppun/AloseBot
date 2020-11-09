@@ -38,7 +38,7 @@ class RoleAssignmentModule {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const name = message.content.substr('?asar'.length).trim();
-                const role = message.guild.roles.find(role => role.name === name);
+                const role = message.guild.roles.cache.find(role => role.name === name);
                 if (role) {
                     const id = role.id;
                     this.db.run(`
@@ -62,7 +62,7 @@ class RoleAssignmentModule {
             const channel = this.config.get('bot-channel');
             if (channel === message.channel.id) {
                 const name = message.content.substr('?rsar'.length).trim();
-                const role = message.guild.roles.find(role => role.name === name);
+                const role = message.guild.roles.cache.find(role => role.name === name);
                 if (role) {
                     this.db.run(`
                     DELETE FROM assignable_roles WHERE role_name=?`, name, (err) => {
@@ -113,7 +113,7 @@ class RoleAssignmentModule {
                 
                 const roleId = lowerCaseRoles[role];
                 if (roleId) {
-                    if (!message.member.roles.find(role => role.id === roleId)) {
+                    if (!message.member.roles.cache.find(role => role.id === roleId)) {
                         message.member.roles.add(roleId).then(member => {
                             message.channel.send(`${member.displayName} you now have the ${role} role!`);
                         });
@@ -139,7 +139,7 @@ class RoleAssignmentModule {
                 
                 const roleId = lowerCaseRoles[role];
                 if (roleId) {
-                    if(message.member.roles.find(role => role.id === roleId)) {
+                    if(message.member.roles.cache.find(role => role.id === roleId)) {
                         message.member.roles.remove(roleId).then(member => {
                             message.channel.send(`${member.displayName} you no longer have the ${role} role!`)
                         });
