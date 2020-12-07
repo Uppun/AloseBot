@@ -23,6 +23,7 @@ client.once('ready', async () => {
     console.log('here i go');
     for (const moduleName of modules) {
         const Module = require('./modules/' + moduleName);
+        console.log(`Module loaded: ${moduleName}`)
         const testModule = new Module(context);
     }
     logChannel = client.channels.resolve(logChannelId);

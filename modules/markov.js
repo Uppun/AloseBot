@@ -376,6 +376,10 @@ class MarkovModule {
     this.dispatch.hook('!settimer', (message) => {
       const split = message.content.split(' ');
       let newTimer = parseInt(split[1]);
+      const botChannel = this.config.get('bot-channel');
+      if (message.channel.id !== botChannel) {
+        return;
+      }
       if (isNaN(newTimer)) { message.channel.send('That is not a number!'); }
       else {
         this.messageTimer = newTimer * 60000;

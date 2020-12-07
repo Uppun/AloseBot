@@ -1,4 +1,4 @@
-const sqlite3 = require('sqlite3').verbose();
+/*const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const Discord = require('discord.js');
 const codes = require('../assets/coins.js');
@@ -933,6 +933,14 @@ class StoreModule {
                 }
             }
         });
+    }
+}
+
+module.exports = StoreModule;*/
+
+class StoreModule {
+    constructor(context) {
+
     }
 }
 
