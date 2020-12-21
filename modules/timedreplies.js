@@ -52,6 +52,7 @@ class TimedMessagesModule {
                     throw err;
                 }
                 rows.forEach((row) => {
+                    console.log(row)
                     this.cooldown = parseInt(row.cooldown, 10);
                 });
             });
@@ -196,7 +197,7 @@ class TimedMessagesModule {
 
         //Listen for pings and send off a reply
         this.dispatch.hook(null, (message) => {
-            if (!this.cooldown || (Date.now() - this.lastReply < this.cooldown * 1000)) {
+            if (Date.now() - this.lastReply < this.cooldown * 1000) {
                 return;
             }
 
