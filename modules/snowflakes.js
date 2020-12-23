@@ -120,6 +120,9 @@ class EventModule {
         this.snowfallTimer = 0;
         this.isTimer = false;
         this.messageDeleteTimer = {};
+        this.triviaTimestamps = {};
+        this.triviaState = {};
+        this.triviaQuestions = {};
         this.coinChannels = this.config.get('coin-channels');
         for (const channel of this.coinChannels) {
             this.seenMessages[channel] = 0;
@@ -153,10 +156,56 @@ class EventModule {
         });
 
         this.db.run(`
+            CREATE TABLE IF NOT EXISTS trivia_db (
+                question TEXT,
+                answer TEXT,
+                PRIMARY KEY (question)
+            )`,
+            (err) => {
+                if (err) {
+                    console.error(err.message);
+                }
+
+                const triviaSQL = `SELECT question, answer FROM trivia_db`;
+
+                this.db.all(triviaSQL, [], (err, rows) => {
+                    if (err) {
+                        throw err;
+                    }
+                    rows.forEach((row) => {
+                        this.triviaQuestions[row.question] = row.answer;
+                    });
+                });
+            });
+
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS trivia_timestamps (
+                user_id TEXT,
+                timestamp TEXT,
+                PRIMARY KEY (user_id)
+            )`,
+            (err) => {
+                if (err) {
+                    console.error(err.message);
+                }
+
+                const timestampSQL = `SELECT user_id, timestamp from trivia_timestamps`;
+
+                this.db.all(timestampSQL, [], (err, rows) => {
+                    if (err) {
+                        throw err;
+                    }
+                    rows.forEach((row) => {
+                        this.triviaTimestamps[row.user_id] = row.timestamp;
+                    });
+                });
+            });
+
+        this.db.run(`
             CREATE TABLE IF NOT EXISTS currency_db (
-            user_id TEXT,
-            currency TEXT,
-            PRIMARY KEY (user_id)
+                user_id TEXT,
+                currency TEXT,
+                PRIMARY KEY (user_id)
         )`,
         (err) => {
             if (err) {
@@ -431,6 +480,34 @@ class EventModule {
                         });
                     }
                     message.channel.send(`I\'ve given you all ${amount} snowflakes!`);
+                }
+
+                if ((/!give\s<@&(\d+)>\s(\d+)$/).test(message.content)) {
+                    const mentionedRole = message.mentions.roles.array()[0];
+                    const id = mentionedRole.id;
+                    const amount = parseInt(message.content.match(/(\d+)/g)[1], 10);
+                    const roleHavers = message.guild.members.cache.filter(member => member.roles.cache.get(id));
+
+
+                    for (const user of [...roleHavers.values()]) {
+                        const userId = user.id;
+                        let giveSql = ``;
+                        if (this.currencies[userId] === undefined) {
+                            this.currencies[userId] = amount;
+                            giveSql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                        } else {
+                            this.currencies[userId] = this.currencies[userId] + amount;
+                            giveSql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
+                        }
+          
+                        this.db.run(giveSql, [this.currencies[userId], userId], (err) => {
+                            if (err) {
+                                console.error(err.message);
+                            }
+                        });
+                    }
+
+                    message.channel.send(`I\'ve given all of ${mentionedRole.name} ${amount} snowflakes!`);
                 }
             }
         });
@@ -871,6 +948,20 @@ class EventModule {
                 }
                 message.channel.send(snowflakeLB);
             });
+        });
+
+        //===========================Trivia======================//
+
+        this.dispatch.hook('!startTrivia', (message) => {
+            const userTimestamp = this.triviaTimestamps[message.author.id];
+            const today = Date.now().getDate();
+
+            if (today === userTimestamp) {
+                return message.channel.send('You\'ll have to wait until tomorrow to play again!');
+            }
+
+            this.triviaTimestamps[message.author.id] = today;
+            this.triviaState[message.author.id] = {}
         });
     }
 }
