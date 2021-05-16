@@ -84,17 +84,29 @@ class RoleAssignmentModule {
             const modChannel = this.config.get('bot-channel');
             if ((message.channel.id === botChannel) || (message.channel.id === modChannel)) {
                 const roles = Object.keys(this.roles);
+                let numRoles = 0;
                 let roleString = '';
                 for (const [i, role] of roles.entries()) {
-                    roleString += role;
-                    if (i + 1 < roles.length) {
-                        roleString += '\n';
+                    if (message.guild.roles.cache.find(r => r.name === role)) {
+                        numRoles++;
+                        roleString += role;
+                        if (i + 1 < roles.length) {
+                            roleString += '\n';
+                        }
+                    } else {
+                        this.db.run(`
+                        DELETE FROM assignable_roles WHERE role_name=?`, role, (err) => {
+                          if (err) {
+                            console.error(err.message);
+                          }
+                        });
+                        delete this.roles[role];
                     }
                 }
 
                 const rolesEmbed = new Discord.MessageEmbed()
                     .setColor('#89cff0')
-                    .setTitle(`There are ${roles.length} self-assignable roles.`)
+                    .setTitle(`There are ${numRoles} self-assignable roles.`)
                     .setDescription(roleString);
                 message.channel.send(rolesEmbed);
             }
@@ -104,6 +116,9 @@ class RoleAssignmentModule {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
                 const role = message.content.substr('?iam'.length).trim().toLowerCase();
+                if (!message.guild.roles.cache.find(r => r.name === role)) {
+                    return message.channel.send('That role doesn\'t exist!');
+                }
                 const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
                 let n = roleKeys.length;
                 while (n--) {

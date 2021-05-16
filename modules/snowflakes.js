@@ -1,7 +1,9 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const Discord = require('discord.js');
-const codes = require('../assets/coins.js');
+const Canvas = require('canvas');
+const fs = require('fs');
+const codes = fs.readdirSync('./assets/EGGS/SOLO');
 
 function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, currentCode) {
     return client.setTimeout(() => {
@@ -13,18 +15,23 @@ function coinTimer(client, coinActive, channel, coinMessages, coinDropAmount, cu
     }, 3600000 )
 }
 
-function snowTimer(client, channel, coinDropAmount, currentCode, timer, coinActive, seenMessages, coinTimers, coinMessages) {
-    return setTimeout(() => {
-        if (!coinActive[channel]) {
-            const coinEmbed = createCoinEmbedd(channel, coinDropAmount, currentCode);
-            seenMessages[channel] = 0;
-            coinActive[channel] = true;
-            client.channels.resolve(channel).send(coinEmbed).then(message => {
-                coinMessages[channel] = message;
-                clearTimeout(coinTimers[channel]);
-            });
-        }
-    }, timer * 60000);
+function snowTimer(client, channel, coinEmbed, coinDropAmount, currentCode, timer, coinActive, seenMessages, coinTimers, coinMessages) {
+    if (timer > 0) {
+        coinDropAmount[channel] = coinEmbed.coinDrop;
+        currentCode[channel] = coinEmbed.keyCode;
+        return setTimeout(() => {
+            if (!coinActive[channel]) {
+                seenMessages[channel] = 0;
+                coinActive[channel] = true;
+                client.channels.resolve(channel).send(coinEmbed.coinEmbed).then(message => {
+                    coinMessages[channel] = message;
+                    clearTimeout(coinTimers[channel]);
+                });
+            }
+        }, timer * 60000);
+    }
+
+    return null;
 }
 
 function removeReactionUsers(reaction, botId) {
@@ -37,37 +44,70 @@ function removeReactionUsers(reaction, botId) {
     });
 }
 
+async function createCoinEmbedd() {
+    let eggImage, coinDrop;
+    const eggRandom = Math.floor(Math.random() * 100);
 
-function createCoinEmbedd(channel, coinDropAmount, currentCode) {
-    const coinDrop = 1;
-    coinDropAmount[channel] = coinDrop;
-    const keyCodes = Array.from(codes.keys());
-    currentCode[channel] = keyCodes[Math.floor(Math.random() * keyCodes.length)];
-    const image = codes.get(currentCode[channel]);
+    switch(true) {
+        case (eggRandom < 50):
+            coinDrop = 1;
+            eggImage = `/SOLO/${codes[Math.floor(Math.random() * codes.length)]}`;
+            break;
+        case (eggRandom < 75):
+            coinDrop = 2;
+            eggImage = `eggs_small.png`;
+            break;
+        case (eggRandom < 90):
+            coinDrop = 3;
+            eggImage = `eggs_medium.png`;
+            break;
+        default:
+            coinDrop = 4;
+            eggImage = `eggs_large.png`;
+    }
+
+    const keyCode = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 5);
+
+    const canvas = Canvas.createCanvas(500, 357);
+    const ctx = canvas.getContext('2d');
+
+    const eggs = await Canvas.loadImage(path.join(__dirname, `../assets/EGGS/${eggImage}`));
+    ctx.drawImage(eggs, 0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#74037b';
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = '40px sans-serif';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 3;
+    ctx.strokeText(`${keyCode}`, canvas.width / 5, canvas.height / 7);
+    ctx.fillStyle = 'white';
+    ctx.fillText(`${keyCode}`, canvas.width / 5, canvas.height / 7);
+
+    const currentEmbed = new Discord.MessageAttachment(canvas.toBuffer(), 'egg.png');
 
     const coinEmbed = new Discord.MessageEmbed()
-        .setTitle('**Some snowflakes appeared!**')
-        .attachFiles([image])
-        .setImage(`attachment://${image.name}`)
-        .setAuthor('Snow!')
-        .setColor('#eb6123')
-        .setDescription(`type **!catch [code]** to catch them!`);
-    return coinEmbed;
+        .setTitle('**You found some eggs!**')
+        .attachFiles([currentEmbed])
+        .setImage(`attachment://${currentEmbed.name}`)
+        .setAuthor('Eggs!')
+        .setDescription(`type **!pick [code]** to collect them!`);
+    return {coinEmbed, coinDrop, keyCode};
 }
 
 function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
     const plantEmbed = new Discord.MessageEmbed()
-        .setTitle('Brrr... a blizzard just blew in!')
+        .setTitle('Help Uppun collect the eggs!')
         .attachFiles(['./assets/snowstorm.png'])
         .setImage(`attachment://snowstorm.png`)
-        .setDescription('Grab some snowflakes by reacting with ❄️!');
+        .setDescription('Grab some eggs by reacting with 🐰!');
     client.channels.resolve(channel).send(plantEmbed).then(message => {
-        message.react('❄️');
+        message.react('🐰');
         const filter = (reaction, user) => {
             return (reaction.emoji.name === '❄️' && !user.bot);
         }
         message.awaitReactions(filter, {time: timerAmount}).then((collected) => {
-            const results = collected.get('❄️');
+            const results = collected.get('🐰');
             if (results) {
                 results.users.cache.forEach(user => {
                     if (!user.bot) {
@@ -86,7 +126,7 @@ function coinPurse(channel, dropAmount, timerAmount, client, db, currencies) {
                         });
                     }
                 });
-                client.channels.resolve(channel).send(`You've collected all the snowflakes! Good job! You all get ${dropAmount} snowflakes!`);
+                client.channels.resolve(channel).send(`You've collected all the eggs! Good job! You all get ${dropAmount} eggs!`);
             } else {
                 client.channels.resolve(channel).send(`Mmm... nobody picked any up...`);
             }
@@ -101,7 +141,7 @@ class EventModule {
         this.dispatch = context.dispatch;
         this.config = context.config;
         this.client = context.client;
-        this.db = new sqlite3.Database(path.join(__dirname, '../db/SnowFlake.db'));
+        this.db = new sqlite3.Database(path.join(__dirname, '../db/egg.db'));
         this.shopPages = [];
         this.storeActive = false;
         this.eventActive = false;
@@ -285,26 +325,29 @@ class EventModule {
         
         //========== Currency Related ==========//
 
-        this.dispatch.hook('!event', (message) => {
+        this.dispatch.hook('!event', async (message) => {
             const channel = this.config.get('bot-channel');
             const dogCommands = this.config.get('bot-speak-channel');
             const command = message.content.substr('!event'.length).trim();
-            /*if (message.channel.id === dogCommands) {
+            if (message.channel.id === dogCommands && message.content === `!event`) {
                 return message.channel.send(
-                    '```\n!snowflakes - shows your snowflake collection\n!snowflakes @user - shows another user\'s snowflake collection\n!catch [code] - catch the snowflakes!\n!lb - shows the leaderboard for who\'s caught the most snowflakes so far!```'
+                    '```\n!eggs - shows your egg collection\n!eggs @user - shows another user\'s egg collection\n!pick [code] - collect the eggs!\n!lb - shows the leaderboard for who\'s collected the most eggs so far!```'
                 );
-            }*/
+            }
             if (message.channel.id !== channel) {
                 return;
             }
 
             if (command === 'start') {
                 this.eventActive = true;
+                console.log(this.snowfallTimer)
                 const channel = this.config.get('general-channel')
                 if (this.snowfallTimer > 0) {
+                    const coinEmbed = await createCoinEmbedd();
                     this.coinTimers[channel] = snowTimer(
                         this.client, 
-                        channel, 
+                        channel,
+                        coinEmbed,
                         this.coinDropAmount, 
                         this.currentCode, 
                         this.snowfallTimer, 
@@ -323,7 +366,7 @@ class EventModule {
             }
         });
 
-        this.dispatch.hook('!snowflakes', (message) => {
+        this.dispatch.hook('!eggs', (message) => {
             if (!this.eventActive) { return }
             const modChannel = this.config.get('bot-channel');
             const botChannel = this.config.get('bot-speak-channel');
@@ -332,47 +375,50 @@ class EventModule {
                 return;
             }
 
-            if (message.content === '!snowflakes') {
+            if (message.content === '!eggs') {
                 const author = message.author.id;
-                const reply = this.currencies[author] ? `❄️${this.currencies[author]}` : `You have no snowflakes...`;
+                const reply = this.currencies[author] ? `🥚${this.currencies[author]}` : `You have no eggs...`;
                 message.channel.send(reply);
             }
 
-            if ((/^!snowflakes\s<@!?(\d+)>$/).test(message.content)) {
+            if ((/^!eggs\s<@!?(\d+)>$/).test(message.content)) {
                 const userId = message.content.match(/(\d+)/g);
                 const user = message.mentions.members.first().user;
                 const amount = this.currencies[userId];
-                const messageToSend = amount ? `${user.username}:❄️${amount}` : `${user.username} has no snowflakes!`;
+                const messageToSend = amount ? `${user.username}:❄️${amount}` : `${user.username} has no eggs!`;
                 message.channel.send(messageToSend);
             }
         });
 
-        this.dispatch.hook('!catch', (message) => {
+        this.dispatch.hook('!pick', async (message) => {
             if (!this.eventActive) { return }
             const currentChannel = message.channel.id;
             const generalChannel = this.config.get('general-channel');
-            if ((/^!catch\s[A-Za-z0-9]+$/).test(message.content) && this.coinChannels.includes(currentChannel)) {
-                const code = message.content.substr('!catch'.length).trim();
+            if ((/^!pick\s[A-Za-z0-9]+$/).test(message.content) && this.coinChannels.includes(currentChannel)) {
+                const code = message.content.substr('!pick'.length).trim();
+                console.log(this.coinActive[currentChannel])
+                console.log(this.currentCode[currentChannel])
                 if (this.coinActive[currentChannel] && code === this.currentCode[currentChannel]) {
                     const grabber = message.author.id;
-                    let snowflakesql = ``;
+                    let eggsql = ``;
                     if (this.currencies[grabber]) {
                         this.currencies[grabber] = this.currencies[grabber] + this.coinDropAmount[currentChannel];
-                        snowflakesql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
+                        eggsql = `UPDATE currency_db SET currency = ? WHERE user_id = ?`;
                     } else {
                         this.currencies[grabber] = this.coinDropAmount[currentChannel];
-                        snowflakesql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
+                        eggsql = `INSERT INTO currency_db (currency, user_id) VALUES (?, ?)`;
                     }
-
                     clearTimeout(this.messageDeleteTimer[currentChannel]);
                     this.coinActive[currentChannel] = false;
                     this.seenMessages[currentChannel] = 0;
                     this.coinMessages[currentChannel].delete();
                     this.currentCode[currentChannel] = null;
                     if (this.snowfallTimer > 0 && message.channel.id === generalChannel) {
+                        const coinEmbed = await createCoinEmbedd();
                         this.coinTimers[generalChannel] = snowTimer(
                             this.client, 
-                            currentChannel, 
+                            currentChannel,
+                            coinEmbed, 
                             this.coinDropAmount, 
                             this.currentCode, 
                             this.snowfallTimer, 
@@ -382,16 +428,19 @@ class EventModule {
                             this.coinMessages
                         );
                     }
-                    this.db.run(snowflakesql, [this.currencies[grabber], grabber], (err) => {
+
+                    this.db.run(eggsql, [this.currencies[grabber], grabber], (err) => {
                         if (err) {
                             console.error(err.message);
                         }
                     });
 
                     if (currentChannel === generalChannel) {
-                        this.coinTimers[currentChannel] = snowTimer(this.client, currentChannel, this.coinDropAmount, this.currentCode, this.snowfallTimer, this.coinActive, this.seenMessages, this.coinTimers, this.coinMessages);
+                        const coinEmbed = await createCoinEmbedd();
+                        this.coinTimers[currentChannel] = snowTimer(this.client, currentChannel, coinEmbed, this.coinDropAmount, this.currentCode, this.snowfallTimer, this.coinActive, this.seenMessages, this.coinTimers, this.coinMessages);
                     }
-                    message.channel.send(`${message.author.username} caught a snowflake!`).then(response => {
+
+                    message.channel.send(`${message.author.username} collected an egg!`).then(response => {
                         response.delete({timeout: 15000});
                     });
                 }
@@ -399,13 +448,13 @@ class EventModule {
             }
         });
 
-        this.dispatch.hook('!setsnowflakeTimer', (message) => {
+        this.dispatch.hook('!setTimer', async (message) => {
             const modChannel = this.config.get('bot-channel');
             if (message.channel.id !== modChannel) {
                 return;
             }
 
-            const newTimer = parseInt(message.content.substr('!setsnowflakeTimer'.length).trim(), 10);
+            const newTimer = parseInt(message.content.substr('!setTimer'.length).trim(), 10);
             if (isNaN(newTimer)) { message.channel.send('That is not a number!'); }
             else {
                 this.db.run(`INSERT INTO currency_timer (currency, timer) VALUES (?, ?)`, ['timer', newTimer], (err) => {
@@ -417,7 +466,8 @@ class EventModule {
                 const channel = this.config.get('general-channel');
                 clearTimeout(this.coinTimers[channel]);
                 if (this.snowfallTimer > 0) {
-                    this.coinTimers[channel] = snowTimer(this.client, channel, this.coinDropAmount, this.currentCode, this.snowfallTimer, this.coinActive, this.seenMessages, this.coinTimers, this.coinmessages);
+                    const coinEmbed = await createCoinEmbedd();
+                    this.coinTimers[channel] = snowTimer(this.client, channel, coinEmbed, this.coinDropAmount, this.currentCode, this.snowfallTimer, this.coinActive, this.seenMessages, this.coinTimers, this.coinmessages);
                     message.channel.send(`Timer set to ${newTimer} minutes.`);
                 } else {
                     message.channel.send(`Timer disabled.`);
@@ -425,10 +475,10 @@ class EventModule {
             }
         });
 
-        this.dispatch.hook('!setsnowflakeGeneral', (message) => {
+        this.dispatch.hook('!setGeneral', (message) => {
             const botChannel = this.config.get('bot-channel');
-            if ((/^!setsnowflakeGeneral\s\d+$/).test(message.content) && message.channel.id === botChannel) {
-                const countdownText = message.content.substr('!setsnowflakeGeneral'.length).trim();
+            if ((/^!setGeneral\s\d+$/).test(message.content) && message.channel.id === botChannel) {
+                const countdownText = message.content.substr('!setGeneral'.length).trim();
                 this.coinCounterGeneral = parseInt(countdownText, 10);
 
                 this.db.run(`
@@ -440,8 +490,8 @@ class EventModule {
                 });
 
                 const response = this.coinCounter <= 0 ? 
-                    'It looks like the weather has cleared up.' : 
-                    `Oh it's gonna snow in the general area every ${this.coinCounterGeneral} messages!`;
+                    'Looks like we ran out of eggs.' : 
+                    `Oh we'll find eggs in general every ${this.coinCounterGeneral} messages!`;
                 message.channel.send(response);
             }
         });
@@ -467,7 +517,7 @@ class EventModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} snowflakes!`);
+                    message.channel.send(`I\'ve given ${mentionedUser.username} ${amount} eggs!`);
                 }
                 if ((/!give\s(\d+)$/).test(message.content)) {
                     const amount = parseInt(message.content.match(/(\d+)/g)[0], 10);
@@ -479,7 +529,7 @@ class EventModule {
                             }
                         });
                     }
-                    message.channel.send(`I\'ve given you all ${amount} snowflakes!`);
+                    message.channel.send(`I\'ve given you all ${amount} eggs!`);
                 }
 
                 if ((/!give\s<@&(\d+)>\s(\d+)$/).test(message.content)) {
@@ -507,7 +557,7 @@ class EventModule {
                         });
                     }
 
-                    message.channel.send(`I\'ve given all of ${mentionedRole.name} ${amount} snowflakes!`);
+                    message.channel.send(`I\'ve given all of ${mentionedRole.name} ${amount} eggs!`);
                 }
             }
         });
@@ -533,15 +583,15 @@ class EventModule {
                             console.error(err.message);
                         }
                     });
-                    message.channel.send(`Removed snowflakes from ${mentionedUser.username}, they now have ${this.currencies[id]} snowflakes.`);
+                    message.channel.send(`Removed eggs from ${mentionedUser.username}, they now have ${this.currencies[id]} eggs.`);
                 }
             }
         })
 
-        this.dispatch.hook('!setsnowflakePlayground', (message) => {
+        this.dispatch.hook('!setPlayground', (message) => {
             const botChannel = this.config.get('bot-channel');
-            if ((/^!setsnowflakePlayground\s\d+$/).test(message.content) && message.channel.id === botChannel) {
-                const countdownText = message.content.substr('!setsnowflakePlayground'.length).trim();
+            if ((/^!setPlayground\s\d+$/).test(message.content) && message.channel.id === botChannel) {
+                const countdownText = message.content.substr('!setPlayground'.length).trim();
                 this.coinCounterPlayground = parseInt(countdownText, 10);
 
                 this.db.run(`
@@ -553,16 +603,16 @@ class EventModule {
                 });
 
                 const response = this.coinCounter <= 0 ? 
-                    'No more snow...' : 
-                    `Oh it's gonna snow in the playground after ${this.coinCounterPlayground} messages!`;
+                    'No more eggs...' : 
+                    `I'll leave eggs in those channels every ${this.coinCounterPlayground} messages!`;
                 message.channel.send(response);
             }
         });
 
-        this.dispatch.hook('!setsnowflakeKitchen', (message) => {
+        this.dispatch.hook('!setKitchen', (message) => {
             const botChannel = this.config.get('bot-channel');
-            if ((/^!setsnowflakeKitchen\s\d+$/).test(message.content) && message.channel.id === botChannel) {
-                const countdownText = message.content.substr('!setsnowflakeKitchen'.length).trim();
+            if ((/^!setKitchen\s\d+$/).test(message.content) && message.channel.id === botChannel) {
+                const countdownText = message.content.substr('!setKitchen'.length).trim();
                 this.coinCounterKitchen = parseInt(countdownText, 10);
 
                 this.db.run(`
@@ -575,12 +625,12 @@ class EventModule {
 
                 const response = this.coinCounter <= 0 ? 
                     'No more snow...' : 
-                    `Oh it's gonna snow in the kitchen after ${this.coinCounterKitchen} messages!`;
+                    `I'll leave eggs in those channels every ${this.coinCounterPlayground} messages!`;
                 message.channel.send(response);
             }
         });
 
-        this.dispatch.hook('!plantdrop', (message) => {
+        /*this.dispatch.hook('!plantdrop', (message) => {
             if (!this.eventActive) { return }
             const generalChannel = this.config.get('general-channel');
             const modIds = this.config.get('mod-ids');
@@ -601,9 +651,9 @@ class EventModule {
                 const timerAmount = parseInt(numbers[1], 10) * 60000;
                 coinPurse(announceChannel, dropAmount, timerAmount, this.client, this.db, this.currencies);
             }
-        });
+        });*/
 
-        this.dispatch.hook(null, (message) => {
+        this.dispatch.hook(null, async (message) => {
             if (!this.eventActive) { return }
             const generalChannels = this.config.get('general-channels');
             const playgroundChannels = this.config.get('playground-channels');
@@ -614,47 +664,52 @@ class EventModule {
                 if (generalChannels.includes(currentChannel)) {
                     messageCap = this.coinCounterGeneral;
                 }
-                /*if (playgroundChannels.includes(currentChannel)) {
+                if (playgroundChannels.includes(currentChannel)) {
                     messageCap = this.coinCounterPlayground;
                 }
                 if (kitchenChannels.includes(currentChannel)) {
                     messageCap = this.coinCounterKitchen;
-                }*/
+                }
                 this.seenMessages[currentChannel]++;
               if (this.seenMessages[currentChannel] === messageCap && !this.coinActive[currentChannel]) {
                     this.seenMessages[currentChannel] = 0;
                     this.coinActive[currentChannel] = true;
                     clearTimeout(this.snowfallTimer);
-                    const coinEmbed = createCoinEmbedd(currentChannel, this.coinDropAmount, this.currentCode);
-                    message.channel.send(coinEmbed).then(msg => {
+                    const coinEmbed = await createCoinEmbedd();
+                    this.coinDropAmount[currentChannel] = coinEmbed.coinDrop;
+                    this.currentCode[currentChannel] = coinEmbed.keyCode;
+                    message.channel.send(coinEmbed.coinEmbed).then( async (msg) => {
                         this.coinMessages[currentChannel] = msg;
                         clearTimeout(this.coinTimers[currentChannel]);
                         const generalChannel = this.config.get('general-channel');
-                        
-                            this.messageDeleteTimer[currentChannel] = setTimeout(() => {
-                                if (this.messageDeleteTimer[currentChannel]) {
-                                    msg.channel.send('Ruuu... No one caught the snowflake...').then(failedMsg => {
-                                        failedMsg.delete({timeout: 60000});
-                                    });
-                                    this.coinActive[currentChannel] = false;
-                                    this.seenMessages[currentChannel] = 0;
-                                    this.coinMessages[currentChannel].delete();
-                                    this.currentCode[currentChannel] = null;
-                                    if (message.channel.id === generalChannel && this.snowfallTimer > 0) {
-                                        this.coinTimers[currentChannel] = snowTimer(
-                                            this.client, 
-                                            currentChannel, 
-                                            this.coinDropAmount, 
-                                            this.currentCode, 
-                                            this.snowfallTimer, 
-                                            this.coinActive, 
-                                            this.seenMessages,
-                                            this.coinTimers,
-                                            this.coinMessages
-                                        );
-                                    }   
+
+                        const coinEmbed = await createCoinEmbedd();
+
+                        this.messageDeleteTimer[currentChannel] = setTimeout(() => {
+                            if (this.messageDeleteTimer[currentChannel]) {
+                                msg.channel.send('Nobody helped collect the egg...').then(failedMsg => {
+                                    failedMsg.delete({timeout: 60000});
+                                });
+                                this.coinActive[currentChannel] = false;
+                                this.seenMessages[currentChannel] = 0;
+                                this.coinMessages[currentChannel].delete();
+                                this.currentCode[currentChannel] = null;
+                                if (message.channel.id === generalChannel && this.snowfallTimer > 0) {
+                                    this.coinTimers[currentChannel] = snowTimer(
+                                        this.client, 
+                                        currentChannel,
+                                        coinEmbed, 
+                                        this.coinDropAmount, 
+                                        this.currentCode, 
+                                        this.snowfallTimer, 
+                                        this.coinActive, 
+                                        this.seenMessages,
+                                        this.coinTimers,
+                                        this.coinMessages
+                                    ); 
                                 }
-                            }, 30000);
+                            }
+                        }, 30000);
                     });
                 }
             }
@@ -689,7 +744,6 @@ class EventModule {
             if (message.channel.id === channel) {
                 console.log(message.content)
                 if ((/^!addShop\srole\s("[A-Za-z\s]+"|“[A-Za-z\s]+”)\s<@&(\d+)>\s\d+$/).test(message.content)) {
-                    console.log('made it here')
                     const idAndCost = message.content.match(/(\d+)/g);
                     const id = idAndCost[0];
                     const roleCost = parseInt(idAndCost[1], 10);
@@ -859,9 +913,9 @@ class EventModule {
                 for (const [i, {type, item_id, info, cost}] of this.shopPages.entries()) {
                     if (type === 'role') {
                         const role =  await guild.roles.fetch(item_id);
-                        page += `**${i + 1}) ${role.name}**:\xa0\xa0\xa0\xa0${cost} :snowflake:\n${info}\n`;
+                        page += `**${i + 1}) ${role.name}**:\xa0\xa0\xa0\xa0${cost} :egg:\n${info}\n`;
                     } else {
-                        page += `**${i + 1}) ${item_id}**:\xa0\xa0\xa0\xa0${cost} :snowflake:\n${info}\n`;
+                        page += `**${i + 1}) ${item_id}**:\xa0\xa0\xa0\xa0${cost} :egg:\n${info}\n`;
                     }
                     if ((i + 1) % 2 === 0) {
                         if ((i + 1) % 4 === 0) {
@@ -887,8 +941,8 @@ class EventModule {
                 let currentPage = 0;
 
                 const shopEmbed = new Discord.MessageEmbed()
-                    .setTitle(':snowflake: :snowflake: :snowflake:')
-                    .setAuthor('Snowflake Shop!')
+                    .setTitle(':egg: :egg: :egg:')
+                    .setAuthor('egg Shop!')
                     .setColor('#FF7417')
                     .setFooter(`Page ${currentPage+1} of ${pages.length}`)
                     .setDescription(pages[currentPage]);
@@ -929,30 +983,30 @@ class EventModule {
             }
 
 
-            const snowflakeArray = Object.entries(this.currencies);
-            snowflakeArray.sort((el1, el2) => {
+            const eggArray = Object.entries(this.currencies);
+            eggArray.sort((el1, el2) => {
                 return parseInt(el2[1], 10) - parseInt(el1[1], 10);
             });
             const topTenPromises = [];
             for (let i = 0; i < 10; i++) {
-                if (snowflakeArray[i]) {
-                    topTenPromises.push(this.client.users.fetch(snowflakeArray[i][0]));
+                if (eggArray[i]) {
+                    topTenPromises.push(this.client.users.fetch(eggArray[i][0]));
                 }
             }
             await Promise.all(topTenPromises).then((topTen) => {
-                const snowflakeLB = new Discord.MessageEmbed()
-                    .setTitle('Snowflake Leaderboard!')
+                const eggLB = new Discord.MessageEmbed()
+                    .setTitle('egg Leaderboard!')
                     .setAuthor('The Doghouse');
                 for (let j = 0; j < topTen.length; j++) {
-                    snowflakeLB.addField(`${topTen[j].username}`, `:snowflake: ${snowflakeArray[j][1]}`);
+                    eggLB.addField(`${topTen[j].username}`, `:egg: ${eggArray[j][1]}`);
                 }
-                message.channel.send(snowflakeLB);
+                message.channel.send(eggLB);
             });
         });
 
         //===========================Trivia======================//
 
-        this.dispatch.hook('!startTrivia', (message) => {
+        /*this.dispatch.hook('!startTrivia', (message) => {
             const userTimestamp = this.triviaTimestamps[message.author.id];
             const today = Date.now().getDate();
 
@@ -962,7 +1016,7 @@ class EventModule {
 
             this.triviaTimestamps[message.author.id] = today;
             this.triviaState[message.author.id] = {}
-        });
+        });*/
     }
 }
 
