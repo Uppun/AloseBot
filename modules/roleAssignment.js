@@ -116,7 +116,7 @@ class RoleAssignmentModule {
             const botChannel = this.config.get('bot-speak-channel');
             if (message.channel.id === botChannel) {
                 const role = message.content.substr('?iam'.length).trim().toLowerCase();
-                if (!message.guild.roles.cache.find(r => r.name === role)) {
+                if (!message.guild.roles.cache.find(r => r.name.toLocaleLowerCase() === role)) {
                     return message.channel.send('That role doesn\'t exist!');
                 }
                 const roleKeys = Object.keys(this.roles), lowerCaseRoles = {};
